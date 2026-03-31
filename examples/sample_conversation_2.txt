@@ -1,0 +1,15 @@
+Alice: Quick update - the login page 500 errors are fixed. It was a misconfigured session token TTL in the deploy config. Password reset flow was not affected, confirmed working.
+
+Bob: Great work Alice. I also finished reviewing Carol's dashboard analytics PR #347. Left a few comments on the error handling in the metrics endpoint, but overall looks good. Carol, once you address those, it's ready to merge.
+
+Carol: Thanks Bob, I'll address the review comments this morning and merge by lunch.
+
+Dave: I finished the requirements doc for Acme Corp's bulk export feature. I've shared it in the planning channel. Key points: they need CSV and PDF export formats, date range filtering, and it needs to handle up to 100k transactions.
+
+Bob: I saw the doc. The 100k transaction limit is going to be tricky - we'll need to think about pagination or async export. Let's discuss in the planning meeting.
+
+Dave: Agreed. I also heard from Acme Corp that they want an API endpoint for the export, not just a UI button. That changes the scope a bit.
+
+Alice: On the payment service monitoring - I updated the alert thresholds. False positives are down by 80%. However, I noticed some latency spikes in the payment gateway during peak hours. We should investigate that.
+
+Carol: I can help with the payment gateway latency investigation. I noticed similar patterns when testing the dashboard metrics - some of the analytics queries were also slow during the same time windows.

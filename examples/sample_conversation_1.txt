@@ -1,0 +1,21 @@
+Alice: Hey team, quick standup. I'll go first. The login page has been throwing 500 errors since last night's deploy. I've been looking into it and it seems like the session token validation is broken. I'm going to fix it today.
+
+Bob: That's bad. I saw a couple of customer complaints about it too. Alice, can you also check if the password reset flow is affected? I noticed some users couldn't complete the reset.
+
+Alice: Sure, I'll check the password reset flow as well. If it's the same root cause, I'll fix both together.
+
+Carol: On my end, I've been working on the new dashboard analytics feature. The backend API for fetching user engagement metrics is done. I need Bob to review the PR before I can merge it.
+
+Bob: I'll review it today, Carol. Send me the link.
+
+Carol: Already shared it in the channel. PR #347.
+
+Dave: I wanted to bring up something from the client call yesterday. Acme Corp is requesting a bulk export feature for their transaction history. They need it by end of month. I think we should prioritize this.
+
+Bob: That's a big ask. Dave, can you write up the requirements doc so we can scope it properly? Let's discuss in the planning meeting tomorrow.
+
+Dave: Will do. I'll have the requirements doc ready by end of day.
+
+Alice: One more thing - the monitoring alerts for the payment service have been noisy. I'm going to update the threshold configuration to reduce false positives. Should be a quick change.
+
+Carol: Sounds good. Also, just a heads up - I deployed the updated email templates to staging. Everything looks good there, the new onboarding email sequence is live on staging.

@@ -1,0 +1,35 @@
+You are an enrichment engine.
+
+INPUT:
+- A conversation summary: {text}
+- A single extracted Decision Unit: {decision_json}
+
+TARGETING RULE (STRICT):
+- Enrich ONLY the decision described in decision_json.
+- The summary may mention multiple decisions; IGNORE all other decisions completely.
+- Only include topics/entities/params/constraints/key_facts that clearly belong to the target decision’s subject/action.
+- If a fact cannot be confidently tied to the target decision, DO NOT include it (use empty arrays).
+
+OUTPUT:
+Return ONLY valid JSON:
+{{
+  "topics": ["..."],
+  "entities": [{{"type": "...", "name": "..."}}, ...],
+  "action_params": [{{"k": "...", "v": "..."}}, ...],
+  "constraints_text": ["..."],
+  "key_facts": [{{"k": "...", "v": "..."}}, ...]
+}}
+
+The output object MUST have these keys (use empty arrays if none):
+- topics: [string, ...]
+- entities: [{{"type": string, "name": string}}, ...]
+- action_params: [{{"k": string, "v": string}}, ...]
+- constraints_text: [string, ...]
+- key_facts: [{{"k": string, "v": string}}, ...]
+
+Rules:
+- Do NOT invent facts not present in the summary.
+- If you cannot infer a field, return an empty array for it.
+- Keep topics/entities/params grounded in the summary.
+- Do NOT “combine” multiple decisions into one enrichment.
+

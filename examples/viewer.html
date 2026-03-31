@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Decision Graph Demo</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f6f8; color: #1a1a2e; }
+  .header { padding: 1.5rem 2rem .5rem; }
+  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  .subtitle { color: #666; font-size: .9rem; margin-bottom: 1rem; }
+  .tabs { display: flex; gap: 0; padding: 0 2rem; border-bottom: 2px solid #e0e0e0; }
+  .tab { padding: .6rem 1.5rem; cursor: pointer; font-weight: 600; font-size: .9rem; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
+  .tab:hover { color: #4361ee; }
+  .tab.active { color: #4361ee; border-bottom-color: #4361ee; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .content { padding: 1.5rem 2rem; }
+  .stats { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
+  .stat { background: #fff; border-radius: 8px; padding: .75rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .stat-value { font-size: 1.5rem; font-weight: 700; }
+  .stat-label { font-size: .75rem; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+  .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
+  .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.06); border-left: 4px solid #4361ee; }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .75rem; gap: .5rem; }
+  .card-subject { font-weight: 600; font-size: 1rem; }
+  .badge { display: inline-block; font-size: .7rem; font-weight: 600; padding: .2rem .5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+  .badge-type { background: #e8eaf6; color: #3949ab; }
+  .badge-status { margin-left: .4rem; }
+  .badge-proposed { background: #fff3e0; color: #e65100; }
+  .badge-in_progress { background: #e3f2fd; color: #1565c0; }
+  .badge-blocked { background: #fce4ec; color: #c62828; }
+  .badge-done { background: #e8f5e9; color: #2e7d32; }
+  .badge-unknown { background: #f5f5f5; color: #757575; }
+  .meta-row { display: flex; gap: 1rem; font-size: .82rem; color: #555; margin-bottom: .5rem; flex-wrap: wrap; }
+  .meta-row span { white-space: nowrap; }
+  .meta-label { font-weight: 600; color: #333; }
+  .section { margin-top: .6rem; }
+  .section-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #999; margin-bottom: .3rem; }
+  .tags { display: flex; flex-wrap: wrap; gap: .3rem; }
+  .tag { font-size: .75rem; background: #f0f0f5; color: #444; padding: .15rem .45rem; border-radius: 3px; }
+  .tag-entity { background: #ede7f6; color: #4527a0; }
+  .kv-list { font-size: .82rem; color: #555; list-style: none; }
+  .kv-list li { margin-bottom: .15rem; }
+  .kv-key { font-weight: 600; color: #333; }
+  .blocker { font-size: .82rem; color: #c62828; font-style: italic; }
+  .empty { text-align: center; padding: 3rem; color: #999; }
+  #error { color: #c62828; text-align: center; padding: 2rem; display: none; }
+
+  .graph-layout { display: flex; gap: 0; height: calc(100vh - 180px); }
+  #graph-container { flex: 1; background: #fff; border-radius: 10px 0 0 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  #detail-panel { width: 340px; background: #fff; border-left: 1px solid #e8e8e8; border-radius: 0 10px 10px 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow-y: auto; transition: width .2s; }
+  #detail-panel.collapsed { width: 0; overflow: hidden; border: none; }
+  .panel-inner { padding: 1.25rem; min-width: 340px; }
+  .panel-header { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+  .panel-type-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .panel-type-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #888; }
+  .panel-title { font-size: 1.05rem; font-weight: 700; margin-bottom: .75rem; word-break: break-word; }
+  .panel-id { font-size: .72rem; color: #aaa; font-family: monospace; margin-bottom: 1rem; word-break: break-all; }
+  .panel-field { margin-bottom: .6rem; }
+  .panel-field-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: .15rem; }
+  .panel-field-value { font-size: .85rem; color: #333; word-break: break-word; }
+  .panel-placeholder { color: #bbb; text-align: center; padding: 3rem 1rem; font-size: .9rem; }
+  .panel-connections { margin-top: 1rem; }
+  .panel-conn-item { font-size: .8rem; padding: .3rem 0; color: #555; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+  .panel-conn-item:hover { color: #4361ee; }
+  .panel-conn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: .4rem; vertical-align: middle; }
+
+  .legend { display: flex; gap: 1.25rem; padding: .75rem 0; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: #555; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 50%; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Decision Graph Demo</h1>
+  <p class="subtitle">Extracted decisions from a sample conversation, enriched via LLM, clustered and graphed</p>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="cards">Decisions</div>
+  <div class="tab" data-tab="graph">Graph</div>
+</div>
+
+<div id="error"></div>
+
+<div id="tab-cards" class="tab-content active">
+  <div class="content">
+    <div id="stats" class="stats"></div>
+    <div id="cards" class="cards"></div>
+  </div>
+</div>
+
+<div id="tab-graph" class="tab-content">
+  <div class="content">
+    <div class="legend" id="legend"></div>
+    <div class="graph-layout">
+      <div id="graph-container"></div>
+      <div id="detail-panel">
+        <div class="panel-inner">
+          <div class="panel-placeholder">Click a node to see its details</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GROUP_COLORS = {
+  cluster:   { background: '#4361ee', border: '#3451d1', font: { color: '#fff' } },
+  decision:  { background: '#f77f00', border: '#d66d00', font: { color: '#fff' } },
+  person:    { background: '#7209b7', border: '#5c0796', font: { color: '#fff' } },
+  topic:     { background: '#06d6a0', border: '#04b381', font: { color: '#1a1a2e' } },
+  entity:    { background: '#ef476f', border: '#d13559', font: { color: '#fff' } },
+  fact:      { background: '#ffd166', border: '#e6b84d', font: { color: '#1a1a2e' } },
+  constraint:{ background: '#118ab2', border: '#0e7497', font: { color: '#fff' } },
+};
+
+const GROUP_LABELS = {
+  cluster: 'Cluster', decision: 'Decision', person: 'Person',
+  topic: 'Topic', entity: 'Entity', fact: 'Fact', constraint: 'Constraint',
+};
+
+const GROUP_SHAPES = {
+  cluster: 'diamond', decision: 'dot', person: 'star',
+  topic: 'triangle', entity: 'square', fact: 'box', constraint: 'hexagon',
+};
+
+let _network = null;
+let _graphNodesRaw = {};
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'graph' && !window._graphRendered) renderGraph();
+  });
+});
+
+async function load() {
+  try {
+    const res = await fetch('generated/output.json');
+    if (!res.ok) throw new Error('generated/output.json not found. Run the demo script first.');
+    window._data = await res.json();
+    renderCards(window._data);
+  } catch (e) {
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('error').textContent = e.message;
+  }
+}
+
+function renderCards(data) {
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-value">${data.total_projections}</div><div class="stat-label">Decisions</div></div>
+    <div class="stat"><div class="stat-value">${data.total_joined}</div><div class="stat-label">Enriched</div></div>
+  `;
+
+  const cardsEl = document.getElementById('cards');
+  const projections = data.projections || [];
+  if (!projections.length) { cardsEl.innerHTML = '<div class="empty">No decisions found.</div>'; return; }
+
+  cardsEl.innerHTML = projections.filter(p => p.valid !== false).map(p => {
+    const proj = p.projection || {};
+    const enr = p.enrichment || {};
+    const status = proj.status_state || 'unknown';
+    const blocker = proj.status_blocker;
+    const topics = enr.topics || [];
+    const entities = enr.entities || [];
+    const keyFacts = enr.key_facts || [];
+    const constraints = enr.constraints_text || [];
+    const actionParams = enr.action_params || {};
+
+    let h = `<div class="card">
+      <div class="card-header">
+        <span class="card-subject">${esc(proj.subject_label || 'Untitled')}</span>
+        <span>
+          <span class="badge badge-type">${esc(proj.decision_type || '')}</span>
+          <span class="badge badge-status badge-${status}">${esc(status)}</span>
+        </span>
+      </div>
+      <div class="meta-row"><span><span class="meta-label">Action:</span> ${esc(proj.action_desc || '-')}</span></div>
+      <div class="meta-row">
+        <span><span class="meta-label">Initiator:</span> ${esc(proj.initiator_name || '-')} (${esc(proj.initiator_role || '-')})</span>
+        ${(proj.counterparty_names||[]).length ? `<span><span class="meta-label">With:</span> ${esc(proj.counterparty_names.join(', '))}</span>` : ''}
+      </div>`;
+    if (blocker) h += `<div class="blocker">Blocker: ${esc(blocker)}</div>`;
+    if (topics.length) h += `<div class="section"><div class="section-title">Topics</div><div class="tags">${topics.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div></div>`;
+    if (entities.length) h += `<div class="section"><div class="section-title">Entities</div><div class="tags">${entities.map(e=>`<span class="tag tag-entity">${esc(typeof e==='object'?(e.name||e.value||''):e)} <small>(${esc(typeof e==='object'?(e.type||''):'')}) </small></span>`).join('')}</div></div>`;
+    if (keyFacts.length) h += `<div class="section"><div class="section-title">Key Facts</div><ul class="kv-list">${keyFacts.map(f=>`<li><span class="kv-key">${esc(typeof f==='object'?f.k:'')}</span>: ${esc(typeof f==='object'?f.v:f)}</li>`).join('')}</ul></div>`;
+    if (constraints.length) h += `<div class="section"><div class="section-title">Constraints</div><ul class="kv-list">${constraints.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>`;
+    const apKeys = Object.keys(actionParams);
+    if (apKeys.length) h += `<div class="section"><div class="section-title">Action Params</div><ul class="kv-list">${apKeys.map(k=>`<li><span class="kv-key">${esc(k)}</span>: ${esc(actionParams[k])}</li>`).join('')}</ul></div>`;
+    h += `</div>`;
+    return h;
+  }).join('');
+}
+
+async function renderGraph() {
+  window._graphRendered = true;
+  let graphData;
+  try {
+    const res = await fetch('generated/graph_data.json');
+    if (!res.ok) throw new Error('generated/graph_data.json not found.');
+    graphData = await res.json();
+  } catch (e) {
+    document.getElementById('graph-container').innerHTML = `<div class="empty">${e.message}</div>`;
+    return;
+  }
+
+  document.getElementById('legend').innerHTML = Object.entries(GROUP_COLORS).map(([group, colors]) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${colors.background}"></div>${group}</div>`
+  ).join('');
+
+  const decisionLabelMap = {};
+  if (window._data) {
+    (window._data.projections || []).forEach(p => {
+      const proj = p.projection || {};
+      const did = proj.decision_id || proj.proj_id;
+      if (did && proj.subject_label) decisionLabelMap[did] = proj.subject_label;
+    });
+  }
+
+  graphData.nodes.forEach(n => { _graphNodesRaw[n.id] = n; });
+
+  const nodes = new vis.DataSet(graphData.nodes.map(n => {
+    const group = n.group || 'decision';
+    const colors = GROUP_COLORS[group] || GROUP_COLORS.decision;
+    let label = n.label;
+    if (group === 'decision' && decisionLabelMap[n.id]) label = decisionLabelMap[n.id];
+    if (label && label.length > 28) label = label.substring(0, 26) + '...';
+    return {
+      id: n.id, label, shape: GROUP_SHAPES[group] || 'dot', color: colors,
+      font: { ...colors.font, size: group === 'cluster' ? 14 : 11 },
+      size: group === 'cluster' ? 30 : group === 'decision' ? 20 : 12,
+    };
+  }));
+
+  const edgesData = graphData.edges;
+  const edges = new vis.DataSet(edgesData.map((e, i) => ({
+    id: i, from: e.from, to: e.to, label: e.label || '',
+    font: { size: 9, color: '#999' },
+    arrows: e.label === 'initiated' ? 'to' : '',
+    color: { color: '#ccc', highlight: '#4361ee' },
+    smooth: { type: 'continuous' },
+  })));
+
+  const container = document.getElementById('graph-container');
+  _network = new vis.Network(container, { nodes, edges }, {
+    physics: {
+      solver: 'forceAtlas2Based',
+      forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.008, springLength: 120, springConstant: 0.04 },
+      stabilization: { iterations: 200 },
+    },
+    interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
+    layout: { improvedLayout: true },
+  });
+
+  _network.on('click', params => {
+    if (params.nodes.length) {
+      showDetail(params.nodes[0], edgesData, nodes);
+    }
+  });
+
+  _network.on('deselectNode', () => {
+    document.querySelector('#detail-panel .panel-inner').innerHTML =
+      '<div class="panel-placeholder">Click a node to see its details</div>';
+  });
+}
+
+function showDetail(nodeId, edgesData, nodesDataSet) {
+  const raw = _graphNodesRaw[nodeId];
+  if (!raw) return;
+  const group = raw.group || 'decision';
+  const meta = raw.meta || {};
+  const colors = GROUP_COLORS[group] || GROUP_COLORS.decision;
+
+  const connected = [];
+  edgesData.forEach(e => {
+    let otherId = null, edgeLabel = e.label || '';
+    if (e.from === nodeId) otherId = e.to;
+    else if (e.to === nodeId) otherId = e.from;
+    if (otherId) {
+      const otherRaw = _graphNodesRaw[otherId];
+      if (otherRaw) connected.push({ id: otherId, label: otherRaw.label, group: otherRaw.group, edge: edgeLabel });
+    }
+  });
+
+  let title = raw.label;
+  let fieldsHtml = '';
+
+  if (group === 'decision') {
+    title = meta.subject_label || raw.label;
+    fieldsHtml = buildFields([
+      ['Decision Type', meta.decision_type],
+      ['Action', `${meta.action_type || ''} - ${meta.action_desc || ''}`],
+      ['Status', meta.status_state],
+      ['Blocker', meta.status_blocker],
+      ['Initiator', `${meta.initiator_name || ''} (${meta.initiator_role || ''})`],
+      ['Counterparties', (meta.counterparty_names || []).join(', ')],
+      ['Evidence', meta.evidence_span],
+      ['Confidence', meta.confidence != null ? String(meta.confidence) : null],
+    ]);
+  } else if (group === 'cluster') {
+    title = meta.primary_subject || raw.label;
+    fieldsHtml = buildFields([
+      ['Summary', meta.rolling_summary],
+      ['Decision Count', meta.decision_count != null ? String(meta.decision_count) : null],
+    ]);
+  } else if (group === 'person') {
+    title = meta.name || raw.label;
+    fieldsHtml = buildFields([['Role', meta.role]]);
+  } else if (group === 'entity') {
+    title = meta.name || raw.label;
+    fieldsHtml = buildFields([['Entity Type', meta.type]]);
+  } else if (group === 'fact') {
+    title = meta.key || raw.label;
+    fieldsHtml = buildFields([['Key', meta.key], ['Value', meta.value]]);
+  } else if (group === 'constraint') {
+    title = meta.text || raw.label;
+  } else if (group === 'topic') {
+    title = meta.topic || raw.label;
+  }
+
+  let connHtml = '';
+  if (connected.length) {
+    const grouped = {};
+    connected.forEach(c => {
+      const g = c.group || 'other';
+      if (!grouped[g]) grouped[g] = [];
+      grouped[g].push(c);
+    });
+    connHtml = '<div class="panel-connections">';
+    connHtml += '<div class="section-title">Connected Nodes</div>';
+    for (const [g, items] of Object.entries(grouped)) {
+      const gc = GROUP_COLORS[g] || GROUP_COLORS.decision;
+      items.forEach(c => {
+        const displayLabel = (g === 'decision' && _graphNodesRaw[c.id]?.meta?.subject_label)
+          ? _graphNodesRaw[c.id].meta.subject_label : c.label;
+        connHtml += `<div class="panel-conn-item" data-node-id="${esc(c.id)}">` +
+          `<span class="panel-conn-dot" style="background:${gc.background}"></span>` +
+          `${esc(displayLabel)}` +
+          (c.edge ? ` <small style="color:#aaa">(${esc(c.edge)})</small>` : '') +
+          `</div>`;
+      });
+    }
+    connHtml += '</div>';
+  }
+
+  const panel = document.querySelector('#detail-panel .panel-inner');
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="panel-type-dot" style="background:${colors.background}"></div>
+      <span class="panel-type-label">${esc(GROUP_LABELS[group] || group)}</span>
+    </div>
+    <div class="panel-title">${esc(title)}</div>
+    <div class="panel-id">${esc(nodeId)}</div>
+    ${fieldsHtml}
+    ${connHtml}
+  `;
+
+  panel.querySelectorAll('.panel-conn-item').forEach(el => {
+    el.addEventListener('click', () => {
+      const targetId = el.dataset.nodeId;
+      if (_network) {
+        _network.selectNodes([targetId]);
+        _network.focus(targetId, { scale: 1.2, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+        showDetail(targetId, window._edgesData, null);
+      }
+    });
+  });
+
+  window._edgesData = edgesData;
+}
+
+function buildFields(pairs) {
+  return pairs.filter(([, v]) => v != null && v !== '' && v !== 'null').map(([label, value]) =>
+    `<div class="panel-field"><div class="panel-field-label">${esc(label)}</div><div class="panel-field-value">${esc(value)}</div></div>`
+  ).join('');
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = String(s||''); return d.innerHTML; }
+
+load();
+</script>
+</body>
+</html>
