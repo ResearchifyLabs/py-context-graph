@@ -36,6 +36,7 @@ dev = [
     "litellm",
     "pandas",
     "google-cloud-firestore",
+    "mock-firestore",
 ]
 
 [project.urls]
