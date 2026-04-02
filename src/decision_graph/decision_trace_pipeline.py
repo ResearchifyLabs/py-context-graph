@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from decision_graph.clustering_service import DecisionClusterService
 from decision_graph.context_retrieval import DecisionContextRetriever
@@ -49,8 +49,11 @@ class DecisionTracePipeline:
         allowed_decision_types: Optional[List[str]] = None,
         domain_hint: str = "NA",
         industry: str = "generic_b2b",
+        on_step: Optional[Callable[[str], None]] = None,
     ):
         """Extract decision items from raw text then run the full pipeline."""
+        if on_step:
+            on_step("extract")
         decision_items = await self._extraction_service.extract(
             conv_text,
             allowed_decision_types=allowed_decision_types,
@@ -65,6 +68,7 @@ class DecisionTracePipeline:
             updated_at=updated_at,
             summary_pid=summary_pid,
             query_gids=query_gids,
+            on_step=on_step,
         )
         return decision_items
 
@@ -78,6 +82,7 @@ class DecisionTracePipeline:
         updated_at: float,
         summary_pid: str,
         query_gids: List[str],
+        on_step: Optional[Callable[[str], None]] = None,
     ):
         if not decision_items:
             return
@@ -85,6 +90,8 @@ class DecisionTracePipeline:
         projection_store = self._backend.projection_store()
         recorded_at = int(datetime.now(timezone.utc).timestamp())
 
+        if on_step:
+            on_step("persist")
         decision_rows = self._build_and_persist_traces(
             decision_items=decision_items,
             conv_id=conv_id,
@@ -95,8 +102,12 @@ class DecisionTracePipeline:
             projection_store=projection_store,
         )
 
+        if on_step:
+            on_step("deduplicate")
         decision_rows = self._deduplicate_traces(decision_rows, gid, conv_id)
 
+        if on_step:
+            on_step("enrich")
         enriched = await self._enrichment_service.run_enrichment(
             summary_text=summary_text,
             decision_rows=decision_rows,
@@ -112,6 +123,8 @@ class DecisionTracePipeline:
         )
 
         if enriched:
+            if on_step:
+                on_step("cluster")
             await self._run_clustering(summary_text=summary_text, cid=conv_id, gids=query_gids)
 
     def _build_and_persist_traces(
