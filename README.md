@@ -166,15 +166,22 @@ class MyLLMAdapter(LLMAdapter):
 
 See the [`examples/`](examples/) directory for a complete demo that:
 - Processes sample conversation files through the full pipeline
-- Generates an interactive HTML visualization with decision cards and a force-directed graph
-- Demonstrates cross-conversation clustering
+- Shows live pipeline progress in the browser as conversations are processed
+- Generates an interactive HTML viewer with Insights dashboard, Cluster Board, Timeline, Person x Cluster matrix, and Explore (force-directed graph) views
 
 ```bash
 cd examples
 pip install py-context-graph[all]
-python run.py
-python -m http.server 8888  # then open http://localhost:8888/viewer.html
+export OPENAI_API_KEY=sk-...   # or any LiteLLM-supported provider
+python run.py                  # opens browser automatically
 ```
+
+The viewer opens immediately and shows pipeline progress in real time. When processing completes, the dashboard appears with all visualizations.
+
+Options:
+- `python run.py --port 9000` — use a different port
+- `python run.py --no-browser` — don't auto-open the browser
+- `python run.py my_notes.txt` — process your own conversation files
 
 ## Project structure
 
