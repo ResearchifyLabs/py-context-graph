@@ -10,10 +10,10 @@ Supports two input modes:
   - .md files: chunked by ## headings, each section processed independently
 
 Usage:
-    python run.py [-h] [FILE ...]
+    python run.py [-h] [--port PORT] [--no-browser] [FILE ...]
 
-If no files are provided, uses sample_conversation_*.txt from the demo directory.
-Then open viewer.html in a browser (serve with python -m http.server from the demo dir).
+Runs the pipeline, serves results at http://localhost:<port>/viewer.html,
+and opens the browser automatically.
 """
 
 import argparse
@@ -21,7 +21,11 @@ import asyncio
 import json
 import logging
 import re
+import threading
 import time
+import webbrowser
+from functools import partial
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List
 
@@ -39,7 +43,24 @@ _logger = logging.getLogger(__name__)
 DEMO_DIR = Path(__file__).parent
 
 
-async def _process_text(pipeline, backend, vector_index, *, conv_text, cid, gid):
+def _write_status(step: str, conversation: str = "", conversation_progress: str = ""):
+    """Write a status.json file so the viewer can show live pipeline progress."""
+    out_dir = DEMO_DIR / "generated"
+    out_dir.mkdir(exist_ok=True)
+    status = {"step": step, "conversation": conversation, "conversation_progress": conversation_progress}
+    (out_dir / "status.json").write_text(json.dumps(status), encoding="utf-8")
+
+
+def _clear_previous_output():
+    """Remove previous output files so the viewer knows to poll for progress."""
+    out_dir = DEMO_DIR / "generated"
+    for f in ["output.json", "graph_data.json"]:
+        p = out_dir / f
+        if p.exists():
+            p.unlink()
+
+
+async def _process_text(pipeline, backend, vector_index, *, conv_text, cid, gid, conv_label, conv_progress):
     summary_pid = f"summary_{cid}"
     backend.projection_store().save(
         pid=summary_pid,
@@ -51,6 +72,9 @@ async def _process_text(pipeline, backend, vector_index, *, conv_text, cid, gid)
     )
     vector_index.add(pid=summary_pid, text=conv_text, gid=gid, cid=cid)
 
+    def on_step(step):
+        _write_status(step, conv_label, conv_progress)
+
     _logger.info("Running pipeline (extract -> persist -> dedupe -> enrich -> cluster)...")
     decision_items = await pipeline.run_from_text(
         conv_text=conv_text,
@@ -59,6 +83,7 @@ async def _process_text(pipeline, backend, vector_index, *, conv_text, cid, gid)
         updated_at=time.time(),
         summary_pid=summary_pid,
         query_gids=[gid],
+        on_step=on_step,
     )
     for i, item in enumerate(decision_items, 1):
         _logger.info("  [%d] %s - %s", i, item.get("decision_type"), item.get("subject", {}).get("label"))
@@ -74,6 +99,9 @@ async def run_demo(conv_files: List[Path]):
     if not conv_files:
         conv_files = [DEMO_DIR / "sample_conversation.txt"]
 
+    _clear_previous_output()
+    _write_status("extract", "Initializing...")
+
     backend = InMemoryBackend()
     vector_index = InMemoryVectorIndex()
     graph_store = InMemoryGraphStore()
@@ -87,22 +115,35 @@ async def run_demo(conv_files: List[Path]):
     )
 
     gid = "demo_group"
+    total_files = len(conv_files)
 
-    for conv_file in conv_files:
+    for file_idx, conv_file in enumerate(conv_files, 1):
         raw_text = conv_file.read_text(encoding="utf-8")
+        conv_label = conv_file.name
+        conv_progress = f"{file_idx}/{total_files}"
 
         if conv_file.suffix == ".md":
             chunks = chunk_markdown(raw_text)
             _logger.info("--- Processing %s (%d chars, %d sections) ---", conv_file.name, len(raw_text), len(chunks))
-            for chunk in chunks:
+            for chunk_idx, chunk in enumerate(chunks, 1):
                 cid = f"{conv_file.stem}_{_slugify(chunk['section'])}"
+                section_progress = f"{file_idx}/{total_files} — section {chunk_idx}/{len(chunks)}"
                 _logger.info("  Section: %s (%d chars)", chunk["section"], len(chunk["text"]))
-                await _process_text(pipeline, backend, vector_index, conv_text=chunk["text"], cid=cid, gid=gid)
+                await _process_text(
+                    pipeline, backend, vector_index,
+                    conv_text=chunk["text"], cid=cid, gid=gid,
+                    conv_label=conv_label, conv_progress=section_progress,
+                )
         else:
             cid = conv_file.stem
             _logger.info("--- Processing %s (%d chars) ---", conv_file.name, len(raw_text))
-            await _process_text(pipeline, backend, vector_index, conv_text=raw_text, cid=cid, gid=gid)
+            await _process_text(
+                pipeline, backend, vector_index,
+                conv_text=raw_text, cid=cid, gid=gid,
+                conv_label=conv_label, conv_progress=conv_progress,
+            )
 
+    _write_status("graph", "Building visualization...")
     service = dg.graph_service()
     projections_result = await service.get_enrichments_and_projections_joined(group_ids=[gid])
 
@@ -110,6 +151,15 @@ async def run_demo(conv_files: List[Path]):
     graph_arrays = graph_store.graph_arrays
 
     return projections_result, hydrated_clusters, graph_arrays
+
+
+def _start_server(port: int) -> HTTPServer:
+    """Start HTTP server in a background thread, serving from the examples directory."""
+    handler = partial(SimpleHTTPRequestHandler, directory=str(DEMO_DIR))
+    server = HTTPServer(("", port), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
 
 
 def parse_args():
@@ -122,13 +172,32 @@ def parse_args():
         type=Path,
         help="Paths to .txt or .md files. If omitted, uses sample conversations from the demo directory.",
     )
+    parser.add_argument(
+        "--port", type=int, default=8888,
+        help="Port for the local viewer server (default: 8888).",
+    )
+    parser.add_argument(
+        "--no-browser", action="store_true",
+        help="Don't auto-open the browser.",
+    )
     return parser.parse_args()
 
 
 async def main():
     args = parse_args()
+
+    # Start server and open browser before pipeline runs
+    server = _start_server(args.port)
+    url = f"http://localhost:{args.port}/viewer.html"
+    _logger.info("Serving at %s", url)
+
+    if not args.no_browser:
+        webbrowser.open(url)
+
+    # Run pipeline (viewer shows live progress via status.json polling)
     projections_result, hydrated_clusters, graph_arrays = await run_demo(args.files)
 
+    # Write final output files
     out_dir = DEMO_DIR / "generated"
     out_dir.mkdir(exist_ok=True)
 
@@ -139,6 +208,9 @@ async def main():
     graph_file = out_dir / "graph_data.json"
     graph_file.write_text(json.dumps(graph_data, indent=2, default=str), encoding="utf-8")
 
+    # Signal completion
+    _write_status("done")
+
     _logger.info(
         "Done. %d projections, %d enriched, %d clusters, graph: %d nodes / %d edges.",
         projections_result["total_projections"],
@@ -147,8 +219,15 @@ async def main():
         len(graph_data["nodes"]),
         len(graph_data["edges"]),
     )
-    _logger.info("Serve and open viewer.html:")
-    _logger.info("  cd %s && python -m http.server 8888", DEMO_DIR)
+    _logger.info("Viewer: %s — press Ctrl+C to stop", url)
+
+    # Keep server running until interrupted
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        _logger.info("Shutting down server.")
+        server.shutdown()
 
 
 if __name__ == "__main__":

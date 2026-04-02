@@ -3,388 +3,1276 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Decision Graph Demo</title>
+<title>Decision Graph — py-context-graph</title>
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f6f8; color: #1a1a2e; }
-  .header { padding: 1.5rem 2rem .5rem; }
-  h1 { font-size: 1.5rem; margin-bottom: .25rem; }
-  .subtitle { color: #666; font-size: .9rem; margin-bottom: 1rem; }
-  .tabs { display: flex; gap: 0; padding: 0 2rem; border-bottom: 2px solid #e0e0e0; }
-  .tab { padding: .6rem 1.5rem; cursor: pointer; font-weight: 600; font-size: .9rem; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
-  .tab:hover { color: #4361ee; }
-  .tab.active { color: #4361ee; border-bottom-color: #4361ee; }
-  .tab-content { display: none; }
-  .tab-content.active { display: block; }
-  .content { padding: 1.5rem 2rem; }
-  .stats { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; }
-  .stat { background: #fff; border-radius: 8px; padding: .75rem 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .stat-value { font-size: 1.5rem; font-weight: 700; }
-  .stat-label { font-size: .75rem; color: #888; text-transform: uppercase; letter-spacing: .04em; }
-  .cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); }
-  .card { background: #fff; border-radius: 10px; padding: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.06); border-left: 4px solid #4361ee; }
-  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .75rem; gap: .5rem; }
-  .card-subject { font-weight: 600; font-size: 1rem; }
-  .badge { display: inline-block; font-size: .7rem; font-weight: 600; padding: .2rem .5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
-  .badge-type { background: #e8eaf6; color: #3949ab; }
-  .badge-status { margin-left: .4rem; }
-  .badge-proposed { background: #fff3e0; color: #e65100; }
-  .badge-in_progress { background: #e3f2fd; color: #1565c0; }
-  .badge-blocked { background: #fce4ec; color: #c62828; }
-  .badge-done { background: #e8f5e9; color: #2e7d32; }
-  .badge-unknown { background: #f5f5f5; color: #757575; }
-  .meta-row { display: flex; gap: 1rem; font-size: .82rem; color: #555; margin-bottom: .5rem; flex-wrap: wrap; }
-  .meta-row span { white-space: nowrap; }
-  .meta-label { font-weight: 600; color: #333; }
-  .section { margin-top: .6rem; }
-  .section-title { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #999; margin-bottom: .3rem; }
-  .tags { display: flex; flex-wrap: wrap; gap: .3rem; }
-  .tag { font-size: .75rem; background: #f0f0f5; color: #444; padding: .15rem .45rem; border-radius: 3px; }
-  .tag-entity { background: #ede7f6; color: #4527a0; }
-  .kv-list { font-size: .82rem; color: #555; list-style: none; }
-  .kv-list li { margin-bottom: .15rem; }
-  .kv-key { font-weight: 600; color: #333; }
-  .blocker { font-size: .82rem; color: #c62828; font-style: italic; }
-  .empty { text-align: center; padding: 3rem; color: #999; }
-  #error { color: #c62828; text-align: center; padding: 2rem; display: none; }
+:root {
+  --bg: #f1f5f9; --surface: #fff; --text: #0f172a; --text-2: #475569; --text-3: #94a3b8;
+  --border: #e2e8f0; --primary: #6366f1; --primary-light: #eef2ff;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-lg: 0 4px 6px rgba(0,0,0,.05), 0 10px 15px rgba(0,0,0,.03);
+  --done: #10b981; --progress: #3b82f6; --blocked: #ef4444; --proposed: #f59e0b; --unknown-s: #94a3b8;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
 
-  .graph-layout { display: flex; gap: 0; height: calc(100vh - 180px); }
-  #graph-container { flex: 1; background: #fff; border-radius: 10px 0 0 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
-  #detail-panel { width: 340px; background: #fff; border-left: 1px solid #e8e8e8; border-radius: 0 10px 10px 0; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow-y: auto; transition: width .2s; }
-  #detail-panel.collapsed { width: 0; overflow: hidden; border: none; }
-  .panel-inner { padding: 1.25rem; min-width: 340px; }
-  .panel-header { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
-  .panel-type-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
-  .panel-type-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #888; }
-  .panel-title { font-size: 1.05rem; font-weight: 700; margin-bottom: .75rem; word-break: break-word; }
-  .panel-id { font-size: .72rem; color: #aaa; font-family: monospace; margin-bottom: 1rem; word-break: break-all; }
-  .panel-field { margin-bottom: .6rem; }
-  .panel-field-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #999; margin-bottom: .15rem; }
-  .panel-field-value { font-size: .85rem; color: #333; word-break: break-word; }
-  .panel-placeholder { color: #bbb; text-align: center; padding: 3rem 1rem; font-size: .9rem; }
-  .panel-connections { margin-top: 1rem; }
-  .panel-conn-item { font-size: .8rem; padding: .3rem 0; color: #555; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
-  .panel-conn-item:hover { color: #4361ee; }
-  .panel-conn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: .4rem; vertical-align: middle; }
+/* Header */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:1.1rem 2rem;display:flex;justify-content:space-between;align-items:center}
+.brand h1{font-size:1.1rem;font-weight:700;letter-spacing:-.02em}
+.tagline{font-size:.78rem;color:var(--text-3);margin-top:.05rem}
+#header-stats{font-size:.8rem;color:var(--text-2)}
+#header-stats b{color:var(--text);font-weight:700}
 
-  .legend { display: flex; gap: 1.25rem; padding: .75rem 0; flex-wrap: wrap; }
-  .legend-item { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: #555; }
-  .legend-dot { width: 14px; height: 14px; border-radius: 50%; }
+/* Tabs */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem}
+.tab{padding:.6rem 1.4rem;font-size:.82rem;font-weight:600;color:var(--text-3);background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;transition:.15s}
+.tab:hover{color:var(--primary)}.tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.tab-content{display:none;padding:1.5rem 2rem}.tab-content.active{display:block}
+
+/* Cards */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.25rem}
+.card-title{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:.85rem}
+
+/* === INSIGHTS === */
+.stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.stat-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.15rem 1rem;text-align:center}
+.sc-value{font-size:2rem;font-weight:800;letter-spacing:-.03em;line-height:1}
+.sc-label{font-size:.7rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-top:.35rem}
+.sc-c1 .sc-value{color:var(--primary)}.sc-c2 .sc-value{color:var(--done)}
+.sc-c3 .sc-value{color:#8b5cf6}.sc-c4 .sc-value{color:#0d9488}
+.insights-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem}
+
+/* Stacked bar */
+.stacked-bar{display:flex;height:28px;border-radius:7px;overflow:hidden;margin-bottom:.85rem}
+.stacked-seg{position:relative;transition:width .5s ease}
+.stacked-seg span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.2)}
+.status-legend{display:flex;gap:1.1rem;flex-wrap:wrap}
+.sl-item{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--text-2)}
+.sl-dot{width:9px;height:9px;border-radius:50%}
+.sl-count{font-weight:700;color:var(--text)}
+
+/* Attention */
+.attn-item{display:flex;align-items:flex-start;gap:.7rem;padding:.6rem 0;border-bottom:1px solid var(--border)}
+.attn-item:last-child{border-bottom:none}
+.attn-dot{width:8px;height:8px;border-radius:50%;margin-top:.35rem;flex-shrink:0}
+.attn-subject{font-size:.85rem;font-weight:600}
+.attn-meta{font-size:.75rem;color:var(--text-3)}
+.attn-blocker{font-size:.75rem;color:var(--blocked);font-style:italic;margin-top:.1rem}
+.attn-empty{text-align:center;padding:1.5rem;color:var(--text-3);font-size:.82rem}
+
+/* People */
+.person-row{display:flex;align-items:center;gap:.7rem;padding:.45rem 0}
+.person-avatar{width:30px;height:30px;border-radius:50%;background:#ede9fe;color:#7c3aed;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.75rem;flex-shrink:0}
+.person-name{font-size:.85rem;font-weight:600;flex:1}
+.person-bar-wrap{width:100px;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.person-bar{height:100%;background:#8b5cf6;border-radius:3px;transition:width .5s}
+.person-count{font-size:.75rem;font-weight:700;color:var(--text-2);width:24px;text-align:right}
+
+/* Themes */
+.theme-list{display:flex;flex-wrap:wrap;gap:.35rem}
+.theme-tag{display:inline-flex;align-items:center;gap:.3rem;font-size:.78rem;background:var(--bg);padding:.25rem .6rem;border-radius:6px;color:var(--text-2)}
+.theme-count{font-weight:700;color:var(--text);font-size:.7rem}
+
+/* Cluster grid (insights) */
+.cluster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem}
+.cluster-card{background:var(--bg);border-radius:8px;padding:.9rem 1rem;border-left:3px solid var(--primary);cursor:pointer;transition:.15s}
+.cluster-card:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.cc-name{font-size:.85rem;font-weight:700;margin-bottom:.25rem;line-height:1.3}
+.cc-summary{font-size:.75rem;color:var(--text-2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cc-micro{display:flex;height:4px;border-radius:2px;overflow:hidden;margin-top:.5rem;gap:1px}
+.cc-micro-seg{border-radius:2px}
+.cc-footer{display:flex;gap:.7rem;margin-top:.35rem;font-size:.7rem;color:var(--text-3)}
+.cc-count{font-weight:700;color:var(--primary)}
+
+/* === GRAPH SUB-NAV === */
+.graph-subnav{display:flex;gap:2px;background:var(--bg);border-radius:10px;padding:3px;margin-bottom:1.25rem;width:fit-content}
+.subnav-btn{padding:.45rem 1.1rem;font-size:.8rem;font-weight:600;border:none;background:transparent;color:var(--text-3);border-radius:8px;cursor:pointer;transition:.15s}
+.subnav-btn:hover{color:var(--text);background:var(--surface)}
+.subnav-btn.active{background:var(--surface);color:var(--primary);box-shadow:var(--shadow)}
+.graph-subview{display:none}.graph-subview.active{display:block}
+
+/* === CLUSTER BOARD === */
+.cb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem;align-items:start}
+.cb-cluster{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1rem;border-top:3px solid var(--primary)}
+.cb-name{font-size:.88rem;font-weight:700;line-height:1.3}
+.cb-summary{font-size:.72rem;color:var(--text-2);line-height:1.4;margin-top:.2rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cb-meta{display:flex;align-items:center;gap:.5rem;margin-top:.4rem;font-size:.7rem;color:var(--text-3)}
+.cb-avatars{display:flex}
+.cb-avatar{width:20px;height:20px;border-radius:50%;background:#ede9fe;color:#7c3aed;font-size:.58rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);margin-left:-4px}
+.cb-avatar:first-child{margin-left:0}
+.cb-minibar{display:flex;height:4px;border-radius:2px;overflow:hidden;gap:1px;margin:.5rem 0 .6rem}
+.cb-minibar-seg{border-radius:2px}
+.cb-decisions{display:flex;flex-direction:column;gap:.3rem}
+.cb-chip{display:flex;align-items:center;gap:.4rem;padding:.35rem .55rem;background:var(--bg);border-radius:6px;border-left:3px solid var(--unknown-s);font-size:.78rem;transition:.1s}
+.cb-chip:hover{background:var(--primary-light)}
+.cb-chip[data-status="done"]{border-left-color:var(--done)}
+.cb-chip[data-status="in_progress"]{border-left-color:var(--progress)}
+.cb-chip[data-status="blocked"]{border-left-color:var(--blocked)}
+.cb-chip[data-status="proposed"]{border-left-color:var(--proposed)}
+.cb-chip-label{flex:1;font-weight:500;line-height:1.3}
+.cb-chip-person{font-size:.68rem;color:var(--text-3);white-space:nowrap}
+
+/* === TIMELINE === */
+.tl-container{overflow-x:auto;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow)}
+.tl-grid{display:grid;min-width:900px}
+.tl-header{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);padding:.65rem .75rem;background:var(--surface);border-bottom:2px solid var(--border);position:sticky;top:0;z-index:1}
+.tl-header-conv{text-align:center}
+.tl-theme-label{font-size:.8rem;font-weight:600;padding:.65rem .75rem;background:var(--surface);border-bottom:1px solid var(--border);border-right:1px solid var(--border);display:flex;align-items:flex-start;color:var(--text);line-height:1.3}
+.tl-cell{padding:.45rem .55rem;border-bottom:1px solid var(--border);border-right:1px solid var(--border);min-height:50px;background:#fafbfc}
+.tl-cell:last-child{border-right:none}
+.tl-cell--empty{background:repeating-linear-gradient(45deg,transparent,transparent 5px,#f8fafc 5px,#f8fafc 10px)}
+.tl-card{background:var(--surface);border-radius:6px;padding:.4rem .55rem;margin-bottom:.3rem;border-left:3px solid var(--unknown-s);box-shadow:0 1px 2px rgba(0,0,0,.04);font-size:.75rem}
+.tl-card[data-status="done"]{border-left-color:var(--done)}
+.tl-card[data-status="in_progress"]{border-left-color:var(--progress)}
+.tl-card[data-status="blocked"]{border-left-color:var(--blocked)}
+.tl-card[data-status="proposed"]{border-left-color:var(--proposed)}
+.tl-card-subject{font-weight:600;line-height:1.3}
+.tl-card-meta{font-size:.68rem;color:var(--text-3);margin-top:.15rem}
+.tl-card-action{font-size:.68rem;color:var(--text-2);margin-top:.1rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tl-section-label{grid-column:1/-1;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:.75rem .75rem .35rem;background:var(--surface);border-bottom:1px solid var(--border)}
+.tl-arrow{position:absolute;top:50%;right:-14px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid var(--primary);opacity:.3;transform:translateY(-50%)}
+
+/* === MATRIX === */
+.mx-container{overflow-x:auto;background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1rem}
+.mx-table{border-collapse:separate;border-spacing:0;width:100%;min-width:600px}
+.mx-table th,.mx-table td{padding:.4rem .35rem;font-size:.75rem;border:1px solid var(--border);text-align:center}
+.mx-table thead th{background:var(--surface);position:sticky;top:0;z-index:1;font-weight:600;vertical-align:bottom}
+.mx-col-header{writing-mode:vertical-lr;transform:rotate(180deg);max-height:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7rem;padding:.5rem .25rem;line-height:1.2}
+.mx-row-header{text-align:left;font-weight:600;background:var(--surface);white-space:nowrap;position:sticky;left:0;z-index:1;padding-left:.75rem;padding-right:.75rem}
+.mx-cell{cursor:default;transition:.15s;min-width:36px}
+.mx-cell:hover{outline:2px solid var(--primary);z-index:2}
+.mx-cell--empty{background:#f8fafc}
+.mx-cell-count{font-weight:700;font-size:.82rem}
+.mx-cell-dots{display:flex;gap:2px;justify-content:center;margin-top:2px}
+.mx-cell-dot{width:6px;height:6px;border-radius:50%}
+.mx-legend{display:flex;gap:1rem;margin-top:.75rem;font-size:.75rem;color:var(--text-2);flex-wrap:wrap}
+.mx-legend-label{font-weight:600}
+.mx-legend-item{display:flex;align-items:center;gap:.25rem}
+.mx-legend-dot{width:8px;height:8px;border-radius:50%}
+
+/* === EXPLORE (existing graph) === */
+.graph-controls{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.6rem}
+.layer-toggles{display:flex;background:var(--surface);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}
+.layer-btn{padding:.45rem 1rem;font-size:.78rem;font-weight:600;border:none;background:var(--surface);color:var(--text-3);cursor:pointer;transition:.15s;border-right:1px solid var(--border)}
+.layer-btn:last-child{border-right:none}
+.layer-btn:hover{color:var(--primary)}
+.layer-btn.active{background:var(--primary);color:#fff}
+.layer-btn .lbl-count{font-size:.65rem;opacity:.7;margin-left:.25rem}
+#graph-search{padding:.4rem .8rem;font-size:.8rem;border:1px solid var(--border);border-radius:8px;outline:none;width:210px;background:var(--surface)}
+#graph-search:focus{border-color:var(--primary)}
+.graph-legend{display:flex;gap:1rem;padding:.5rem .75rem;flex-wrap:wrap;background:var(--surface);border-radius:8px;box-shadow:var(--shadow);margin-bottom:.5rem}
+.gl-item{display:flex;align-items:center;gap:.3rem;font-size:.75rem;color:var(--text-2)}
+.gl-dot{width:10px;height:10px;border-radius:50%}
+.gl-diamond{width:9px;height:9px;transform:rotate(45deg);border-radius:1px}
+.gl-sep{color:var(--border);margin:0 .25rem}
+.graph-wrapper{display:flex;gap:0;height:calc(100vh - 280px);min-height:500px}
+#graph-canvas{flex:1;background:#f8fafc;background-image:radial-gradient(circle,#e2e8f0 1px,transparent 1px);background-size:24px 24px;border-radius:var(--radius) 0 0 var(--radius);box-shadow:var(--shadow)}
+#detail-panel{width:340px;background:var(--surface);border-left:1px solid var(--border);border-radius:0 var(--radius) var(--radius) 0;box-shadow:var(--shadow);overflow-y:auto}
+.panel-inner{padding:1.15rem;min-width:300px}
+.panel-placeholder{color:var(--text-3);text-align:center;padding:3rem 1rem;font-size:.82rem}
+.panel-header{display:flex;align-items:center;gap:.4rem;margin-bottom:.4rem}
+.panel-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.panel-type{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3)}
+.panel-title{font-size:1rem;font-weight:700;margin-bottom:.4rem;line-height:1.3;color:var(--text)}
+.panel-badge{display:inline-block;font-size:.68rem;font-weight:700;padding:.15rem .45rem;border-radius:4px;text-transform:uppercase;margin-bottom:.65rem}
+.panel-field{margin-bottom:.55rem}
+.panel-fl{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:.1rem}
+.panel-fv{font-size:.8rem;color:var(--text-2)}
+.panel-tags{display:flex;flex-wrap:wrap;gap:.25rem;margin-top:.15rem}
+.panel-tag{font-size:.7rem;background:var(--bg);padding:.12rem .4rem;border-radius:4px;color:var(--text-2)}
+.pt-topic{background:#ccfbf1;color:#0f766e}.pt-entity{background:#ede9fe;color:#5b21b6}
+.panel-conns{margin-top:.85rem}
+.panel-conns-title{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:.4rem}
+.panel-conn{font-size:.78rem;padding:.3rem .45rem;color:var(--text-2);cursor:pointer;border-radius:4px;display:flex;align-items:center;gap:.35rem;transition:.1s}
+.panel-conn:hover{background:var(--bg);color:var(--primary)}
+.pc-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* === DECISIONS === */
+.filter-bar{display:flex;gap:.7rem;margin-bottom:1.25rem;flex-wrap:wrap}
+.filter-bar select,.filter-bar input{padding:.4rem .7rem;font-size:.8rem;border:1px solid var(--border);border-radius:8px;outline:none;background:var(--surface)}
+.filter-bar select:focus,.filter-bar input:focus{border-color:var(--primary)}
+.filter-bar input{width:240px}
+.cluster-section{margin-bottom:1.5rem}
+.cs-header{display:flex;align-items:center;gap:.5rem;margin-bottom:.7rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+.cs-dot{width:9px;height:9px;border-radius:2px;background:var(--primary);transform:rotate(45deg)}
+.cs-name{font-size:.92rem;font-weight:700}.cs-count{font-size:.72rem;color:var(--text-3)}
+.dec-grid{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(400px,1fr))}
+.dec-card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1.1rem;border-left:4px solid var(--unknown-s);transition:.1s}
+.dec-card:hover{transform:translateY(-1px)}
+.dec-card[data-status="done"]{border-left-color:var(--done)}
+.dec-card[data-status="in_progress"]{border-left-color:var(--progress)}
+.dec-card[data-status="blocked"]{border-left-color:var(--blocked)}
+.dec-card[data-status="proposed"]{border-left-color:var(--proposed)}
+.dc-header{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.4rem}
+.dc-subject{font-weight:700;font-size:.88rem;line-height:1.3}
+.dc-badges{display:flex;gap:.25rem;flex-shrink:0}
+.badge{display:inline-block;font-size:.62rem;font-weight:700;padding:.12rem .4rem;border-radius:4px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
+.badge-type{background:var(--primary-light);color:var(--primary)}
+.badge-done{background:#d1fae5;color:#065f46}.badge-in_progress{background:#dbeafe;color:#1e40af}
+.badge-blocked{background:#fee2e2;color:#991b1b}.badge-proposed{background:#fef3c7;color:#92400e}
+.badge-unknown{background:#f1f5f9;color:#64748b}
+.dc-action{font-size:.8rem;color:var(--text-2);margin-bottom:.35rem}
+.dc-meta{font-size:.75rem;color:var(--text-3);display:flex;gap:.85rem;margin-bottom:.35rem}
+.dc-ml{font-weight:600;color:var(--text-2)}
+.dc-blocker{font-size:.75rem;color:var(--blocked);font-style:italic}
+.dc-section{margin-top:.45rem}
+.dc-st{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);margin-bottom:.2rem}
+.dc-tags{display:flex;flex-wrap:wrap;gap:.2rem}
+.dc-tag{font-size:.7rem;background:var(--bg);padding:.1rem .38rem;border-radius:3px;color:var(--text-2)}
+.dc-tag-ent{background:#ede9fe;color:#5b21b6}
+.dc-kv{font-size:.75rem;color:var(--text-2);list-style:none}
+.dc-kv li{margin-bottom:.08rem}
+.dc-kvk{font-weight:600;color:var(--text)}
+.empty-state{text-align:center;padding:3rem;color:var(--text-3);font-size:.85rem}
+#error{color:var(--blocked);text-align:center;padding:2rem;display:none}
+
+/* Pipeline progress screen */
+#pipeline-progress{display:none;max-width:520px;margin:6rem auto;padding:2rem;text-align:center}
+#pipeline-progress h2{font-size:1.2rem;font-weight:700;margin-bottom:.3rem}
+#pipeline-progress .pp-sub{font-size:.82rem;color:var(--text-3);margin-bottom:2rem}
+.pp-steps{display:flex;flex-direction:column;gap:0;text-align:left}
+.pp-step{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;border-left:3px solid var(--border);position:relative}
+.pp-step.done{border-left-color:var(--done)}.pp-step.active{border-left-color:var(--primary)}.pp-step.waiting{border-left-color:var(--border)}
+.pp-icon{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0}
+.pp-step.done .pp-icon{background:#d1fae5;color:#065f46}
+.pp-step.active .pp-icon{background:var(--primary-light);color:var(--primary);animation:pp-pulse 1.2s infinite}
+.pp-step.waiting .pp-icon{background:var(--bg);color:var(--text-3)}
+@keyframes pp-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pp-label{font-size:.85rem;font-weight:600;color:var(--text)}.pp-step.waiting .pp-label{color:var(--text-3)}
+.pp-detail{font-size:.72rem;color:var(--text-3);margin-left:auto}
+.pp-conv{margin-top:1.5rem;font-size:.78rem;color:var(--text-2);font-weight:600}
+@media(max-width:768px){.stat-cards{grid-template-columns:repeat(2,1fr)}.insights-row{grid-template-columns:1fr}.graph-wrapper{flex-direction:column;height:auto}#detail-panel{width:100%}.dec-grid{grid-template-columns:1fr}.cb-grid{grid-template-columns:1fr}.tl-grid{min-width:600px}.graph-subnav{flex-wrap:wrap}}
 </style>
 </head>
 <body>
-<div class="header">
-  <h1>Decision Graph Demo</h1>
-  <p class="subtitle">Extracted decisions from a sample conversation, enriched via LLM, clustered and graphed</p>
-</div>
 
-<div class="tabs">
-  <div class="tab active" data-tab="cards">Decisions</div>
-  <div class="tab" data-tab="graph">Graph</div>
-</div>
+<header>
+  <div class="brand">
+    <h1>py-context-graph</h1>
+    <p class="tagline">Decision intelligence extracted from conversations</p>
+  </div>
+  <div id="header-stats"></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="insights">Insights</button>
+  <button class="tab" data-tab="graph">Visualize</button>
+  <button class="tab" data-tab="decisions">Decisions</button>
+</nav>
 
 <div id="error"></div>
 
-<div id="tab-cards" class="tab-content active">
-  <div class="content">
-    <div id="stats" class="stats"></div>
-    <div id="cards" class="cards"></div>
-  </div>
+<div id="pipeline-progress">
+  <h2>Pipeline Running</h2>
+  <p class="pp-sub">Processing conversations through the decision graph pipeline</p>
+  <div id="pp-conv-label" class="pp-conv"></div>
+  <div class="pp-steps" id="pp-steps"></div>
 </div>
 
-<div id="tab-graph" class="tab-content">
-  <div class="content">
-    <div class="legend" id="legend"></div>
-    <div class="graph-layout">
-      <div id="graph-container"></div>
-      <div id="detail-panel">
-        <div class="panel-inner">
-          <div class="panel-placeholder">Click a node to see its details</div>
-        </div>
-      </div>
+<section id="tab-insights" class="tab-content active">
+  <div id="stat-cards" class="stat-cards"></div>
+  <div class="insights-row">
+    <div class="card" id="status-card"><div class="card-title">Decision Status</div></div>
+    <div class="card" id="attention-card"><div class="card-title">Needs Attention</div></div>
+  </div>
+  <div class="insights-row">
+    <div class="card" id="people-card"><div class="card-title">Key People</div></div>
+    <div class="card" id="themes-card"><div class="card-title">Top Themes</div></div>
+  </div>
+  <div class="card"><div class="card-title">Decision Clusters</div><div id="cluster-grid" class="cluster-grid"></div></div>
+</section>
+
+<section id="tab-graph" class="tab-content">
+  <nav class="graph-subnav" id="graph-subnav">
+    <button class="subnav-btn active" data-subview="board">Cluster Board</button>
+    <button class="subnav-btn" data-subview="timeline">Timeline</button>
+    <button class="subnav-btn" data-subview="matrix">Person &times; Cluster</button>
+    <button class="subnav-btn" data-subview="explore">Explore</button>
+  </nav>
+
+  <div id="subview-board" class="graph-subview active"></div>
+  <div id="subview-timeline" class="graph-subview"></div>
+  <div id="subview-matrix" class="graph-subview"></div>
+
+  <div id="subview-explore" class="graph-subview">
+    <div class="graph-controls">
+      <div class="layer-toggles" id="layer-toggles"></div>
+      <input type="text" id="graph-search" placeholder="Search nodes..." />
+    </div>
+    <div class="graph-legend" id="graph-legend"></div>
+    <div class="graph-wrapper">
+      <div id="graph-canvas"></div>
+      <div id="detail-panel"><div class="panel-inner"><div class="panel-placeholder">Click a node to inspect</div></div></div>
     </div>
   </div>
-</div>
+</section>
+
+<section id="tab-decisions" class="tab-content">
+  <div class="filter-bar">
+    <select id="filter-status"><option value="">All statuses</option><option value="done">Done</option><option value="in_progress">In Progress</option><option value="blocked">Blocked</option><option value="proposed">Proposed</option><option value="unknown">Unknown</option></select>
+    <select id="filter-person"><option value="">All people</option></select>
+    <input type="text" id="filter-search" placeholder="Search decisions..." />
+  </div>
+  <div id="decision-list"></div>
+</section>
 
 <script>
+/* ================================================================
+   CONSTANTS
+   ================================================================ */
+const STATUS_COLORS = {
+  done:        { bg: '#10b981', border: '#059669', font: '#fff' },
+  in_progress: { bg: '#3b82f6', border: '#2563eb', font: '#fff' },
+  blocked:     { bg: '#ef4444', border: '#dc2626', font: '#fff' },
+  proposed:    { bg: '#f59e0b', border: '#d97706', font: '#fff' },
+  unknown:     { bg: '#94a3b8', border: '#64748b', font: '#fff' },
+};
+const STATUS_LABELS = { done: 'Done', in_progress: 'In Progress', blocked: 'Blocked', proposed: 'Proposed', unknown: 'Unknown' };
+const STATUS_PRIORITY = { blocked: 0, proposed: 1, in_progress: 2, done: 3, unknown: 4 };
 const GROUP_COLORS = {
-  cluster:   { background: '#4361ee', border: '#3451d1', font: { color: '#fff' } },
-  decision:  { background: '#f77f00', border: '#d66d00', font: { color: '#fff' } },
-  person:    { background: '#7209b7', border: '#5c0796', font: { color: '#fff' } },
-  topic:     { background: '#06d6a0', border: '#04b381', font: { color: '#1a1a2e' } },
-  entity:    { background: '#ef476f', border: '#d13559', font: { color: '#fff' } },
-  fact:      { background: '#ffd166', border: '#e6b84d', font: { color: '#1a1a2e' } },
-  constraint:{ background: '#118ab2', border: '#0e7497', font: { color: '#fff' } },
+  cluster:    { bg: '#6366f1', border: '#4f46e5', font: '#fff' },
+  person:     { bg: '#8b5cf6', border: '#7c3aed', font: '#fff' },
+  topic:      { bg: '#14b8a6', border: '#0d9488', font: '#fff' },
+  entity:     { bg: '#f43f5e', border: '#e11d48', font: '#fff' },
+  fact:       { bg: '#fbbf24', border: '#d97706', font: '#1a1a2e' },
+  constraint: { bg: '#0ea5e9', border: '#0284c7', font: '#fff' },
 };
-
-const GROUP_LABELS = {
-  cluster: 'Cluster', decision: 'Decision', person: 'Person',
-  topic: 'Topic', entity: 'Entity', fact: 'Fact', constraint: 'Constraint',
-};
-
 const GROUP_SHAPES = {
   cluster: 'diamond', decision: 'dot', person: 'star',
   topic: 'triangle', entity: 'square', fact: 'box', constraint: 'hexagon',
 };
+const LAYERS = {
+  overview: { groups: new Set(['cluster','decision','person']), label: 'Overview' },
+  context:  { groups: new Set(['cluster','decision','person','topic','entity']), label: '+ Context' },
+  full:     { groups: new Set(['cluster','decision','person','topic','entity','fact','constraint']), label: '+ All Details' },
+};
 
-let _network = null;
-let _graphNodesRaw = {};
+/* ================================================================
+   STATE
+   ================================================================ */
+let outputData = null, graphData = null;
+let network = null, nodesDS = null, edgesDS = null;
+let allVisNodes = [], allVisEdges = [], nodeRawMap = {};
+let currentLayer = 'overview';
+let graphViewData = null;
+let activeSubview = 'board';
+const subviewRendered = { board: false, timeline: false, matrix: false, explore: false };
 
-document.querySelectorAll('.tab').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    tab.classList.add('active');
-    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'graph' && !window._graphRendered) renderGraph();
-  });
-});
+/* ================================================================
+   DATA LOADING
+   ================================================================ */
+const PIPELINE_STEPS = [
+  { key: 'extract', label: 'Extract', desc: 'Extracting decisions from text' },
+  { key: 'persist', label: 'Persist', desc: 'Saving decision traces' },
+  { key: 'deduplicate', label: 'Deduplicate', desc: 'Removing duplicate decisions' },
+  { key: 'enrich', label: 'Enrich', desc: 'Adding topics, entities & facts' },
+  { key: 'cluster', label: 'Cluster', desc: 'Grouping related decisions' },
+  { key: 'graph', label: 'Graph', desc: 'Building visualization graph' },
+];
 
-async function load() {
-  try {
-    const res = await fetch('generated/output.json');
-    if (!res.ok) throw new Error('generated/output.json not found. Run the demo script first.');
-    window._data = await res.json();
-    renderCards(window._data);
-  } catch (e) {
-    document.getElementById('error').style.display = 'block';
-    document.getElementById('error').textContent = e.message;
-  }
-}
+function showPipelineProgress(status) {
+  const el = document.getElementById('pipeline-progress');
+  const stepsEl = document.getElementById('pp-steps');
+  const convLabel = document.getElementById('pp-conv-label');
+  el.style.display = 'block';
+  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tabs').forEach(s => s.style.display = 'none');
 
-function renderCards(data) {
-  document.getElementById('stats').innerHTML = `
-    <div class="stat"><div class="stat-value">${data.total_projections}</div><div class="stat-label">Decisions</div></div>
-    <div class="stat"><div class="stat-value">${data.total_joined}</div><div class="stat-label">Enriched</div></div>
-  `;
+  const currentStep = status.step || '';
+  const convInfo = status.conversation || '';
+  const convProgress = status.conversation_progress || '';
+  convLabel.textContent = convInfo ? `${convInfo}${convProgress ? ' — ' + convProgress : ''}` : '';
 
-  const cardsEl = document.getElementById('cards');
-  const projections = data.projections || [];
-  if (!projections.length) { cardsEl.innerHTML = '<div class="empty">No decisions found.</div>'; return; }
-
-  cardsEl.innerHTML = projections.filter(p => p.valid !== false).map(p => {
-    const proj = p.projection || {};
-    const enr = p.enrichment || {};
-    const status = proj.status_state || 'unknown';
-    const blocker = proj.status_blocker;
-    const topics = enr.topics || [];
-    const entities = enr.entities || [];
-    const keyFacts = enr.key_facts || [];
-    const constraints = enr.constraints_text || [];
-    const actionParams = enr.action_params || {};
-
-    let h = `<div class="card">
-      <div class="card-header">
-        <span class="card-subject">${esc(proj.subject_label || 'Untitled')}</span>
-        <span>
-          <span class="badge badge-type">${esc(proj.decision_type || '')}</span>
-          <span class="badge badge-status badge-${status}">${esc(status)}</span>
-        </span>
-      </div>
-      <div class="meta-row"><span><span class="meta-label">Action:</span> ${esc(proj.action_desc || '-')}</span></div>
-      <div class="meta-row">
-        <span><span class="meta-label">Initiator:</span> ${esc(proj.initiator_name || '-')} (${esc(proj.initiator_role || '-')})</span>
-        ${(proj.counterparty_names||[]).length ? `<span><span class="meta-label">With:</span> ${esc(proj.counterparty_names.join(', '))}</span>` : ''}
-      </div>`;
-    if (blocker) h += `<div class="blocker">Blocker: ${esc(blocker)}</div>`;
-    if (topics.length) h += `<div class="section"><div class="section-title">Topics</div><div class="tags">${topics.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div></div>`;
-    if (entities.length) h += `<div class="section"><div class="section-title">Entities</div><div class="tags">${entities.map(e=>`<span class="tag tag-entity">${esc(typeof e==='object'?(e.name||e.value||''):e)} <small>(${esc(typeof e==='object'?(e.type||''):'')}) </small></span>`).join('')}</div></div>`;
-    if (keyFacts.length) h += `<div class="section"><div class="section-title">Key Facts</div><ul class="kv-list">${keyFacts.map(f=>`<li><span class="kv-key">${esc(typeof f==='object'?f.k:'')}</span>: ${esc(typeof f==='object'?f.v:f)}</li>`).join('')}</ul></div>`;
-    if (constraints.length) h += `<div class="section"><div class="section-title">Constraints</div><ul class="kv-list">${constraints.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>`;
-    const apKeys = Object.keys(actionParams);
-    if (apKeys.length) h += `<div class="section"><div class="section-title">Action Params</div><ul class="kv-list">${apKeys.map(k=>`<li><span class="kv-key">${esc(k)}</span>: ${esc(actionParams[k])}</li>`).join('')}</ul></div>`;
-    h += `</div>`;
-    return h;
+  const stepIndex = PIPELINE_STEPS.findIndex(s => s.key === currentStep);
+  stepsEl.innerHTML = PIPELINE_STEPS.map((s, i) => {
+    const state = i < stepIndex ? 'done' : i === stepIndex ? 'active' : 'waiting';
+    const icon = state === 'done' ? '&#10003;' : state === 'active' ? '&#9679;' : '&#9675;';
+    return `<div class="pp-step ${state}"><div class="pp-icon">${icon}</div><span class="pp-label">${s.label}</span><span class="pp-detail">${s.desc}</span></div>`;
   }).join('');
 }
 
-async function renderGraph() {
-  window._graphRendered = true;
-  let graphData;
-  try {
-    const res = await fetch('generated/graph_data.json');
-    if (!res.ok) throw new Error('generated/graph_data.json not found.');
-    graphData = await res.json();
-  } catch (e) {
-    document.getElementById('graph-container').innerHTML = `<div class="empty">${e.message}</div>`;
-    return;
-  }
-
-  document.getElementById('legend').innerHTML = Object.entries(GROUP_COLORS).map(([group, colors]) =>
-    `<div class="legend-item"><div class="legend-dot" style="background:${colors.background}"></div>${group}</div>`
-  ).join('');
-
-  const decisionLabelMap = {};
-  if (window._data) {
-    (window._data.projections || []).forEach(p => {
-      const proj = p.projection || {};
-      const did = proj.decision_id || proj.proj_id;
-      if (did && proj.subject_label) decisionLabelMap[did] = proj.subject_label;
-    });
-  }
-
-  graphData.nodes.forEach(n => { _graphNodesRaw[n.id] = n; });
-
-  const nodes = new vis.DataSet(graphData.nodes.map(n => {
-    const group = n.group || 'decision';
-    const colors = GROUP_COLORS[group] || GROUP_COLORS.decision;
-    let label = n.label;
-    if (group === 'decision' && decisionLabelMap[n.id]) label = decisionLabelMap[n.id];
-    if (label && label.length > 28) label = label.substring(0, 26) + '...';
-    return {
-      id: n.id, label, shape: GROUP_SHAPES[group] || 'dot', color: colors,
-      font: { ...colors.font, size: group === 'cluster' ? 14 : 11 },
-      size: group === 'cluster' ? 30 : group === 'decision' ? 20 : 12,
-    };
-  }));
-
-  const edgesData = graphData.edges;
-  const edges = new vis.DataSet(edgesData.map((e, i) => ({
-    id: i, from: e.from, to: e.to, label: e.label || '',
-    font: { size: 9, color: '#999' },
-    arrows: e.label === 'initiated' ? 'to' : '',
-    color: { color: '#ccc', highlight: '#4361ee' },
-    smooth: { type: 'continuous' },
-  })));
-
-  const container = document.getElementById('graph-container');
-  _network = new vis.Network(container, { nodes, edges }, {
-    physics: {
-      solver: 'forceAtlas2Based',
-      forceAtlas2Based: { gravitationalConstant: -40, centralGravity: 0.008, springLength: 120, springConstant: 0.04 },
-      stabilization: { iterations: 200 },
-    },
-    interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
-    layout: { improvedLayout: true },
-  });
-
-  _network.on('click', params => {
-    if (params.nodes.length) {
-      showDetail(params.nodes[0], edgesData, nodes);
-    }
-  });
-
-  _network.on('deselectNode', () => {
-    document.querySelector('#detail-panel .panel-inner').innerHTML =
-      '<div class="panel-placeholder">Click a node to see its details</div>';
-  });
+function hidePipelineProgress() {
+  document.getElementById('pipeline-progress').style.display = 'none';
+  document.querySelectorAll('.tabs').forEach(s => s.style.display = 'flex');
+  switchTab('insights');
 }
 
-function showDetail(nodeId, edgesData, nodesDataSet) {
-  const raw = _graphNodesRaw[nodeId];
-  if (!raw) return;
-  const group = raw.group || 'decision';
-  const meta = raw.meta || {};
-  const colors = GROUP_COLORS[group] || GROUP_COLORS.decision;
+async function loadData() {
+  /* Try to load finished data first (pre-generated case) */
+  try {
+    const [outRes, grRes] = await Promise.all([
+      fetch('generated/output.json'),
+      fetch('generated/graph_data.json'),
+    ]);
+    if (outRes.ok && grRes.ok) {
+      outputData = await outRes.json();
+      graphData = await grRes.json();
+      init();
+      return;
+    }
+  } catch (_) { /* fall through to polling */ }
 
-  const connected = [];
-  edgesData.forEach(e => {
-    let otherId = null, edgeLabel = e.label || '';
-    if (e.from === nodeId) otherId = e.to;
-    else if (e.to === nodeId) otherId = e.from;
-    if (otherId) {
-      const otherRaw = _graphNodesRaw[otherId];
-      if (otherRaw) connected.push({ id: otherId, label: otherRaw.label, group: otherRaw.group, edge: edgeLabel });
+  /* Check if pipeline is running (status.json exists) */
+  try {
+    const statusRes = await fetch('generated/status.json');
+    if (statusRes.ok) {
+      pollPipeline();
+      return;
+    }
+  } catch (_) { /* fall through */ }
+
+  document.getElementById('error').style.display = 'block';
+  document.getElementById('error').textContent = 'No data found. Run: python run.py';
+}
+
+async function pollPipeline() {
+  const poll = async () => {
+    try {
+      const statusRes = await fetch('generated/status.json?t=' + Date.now());
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        showPipelineProgress(status);
+        if (status.step === 'done') {
+          const [outRes, grRes] = await Promise.all([
+            fetch('generated/output.json?t=' + Date.now()),
+            fetch('generated/graph_data.json?t=' + Date.now()),
+          ]);
+          if (outRes.ok && grRes.ok) {
+            outputData = await outRes.json();
+            graphData = await grRes.json();
+            hidePipelineProgress();
+            init();
+            return;
+          }
+        }
+      }
+    } catch (_) { /* keep polling */ }
+    setTimeout(poll, 800);
+  };
+  poll();
+}
+
+/* ================================================================
+   STATS COMPUTATION
+   ================================================================ */
+function computeStats() {
+  const decisions = (outputData.projections || []).filter(p => p.valid !== false && p.proj_type === 'decision_trace');
+  const clusters = (graphData.nodes || []).filter(n => n.group === 'cluster');
+  const statuses = {};
+  decisions.forEach(d => { const s = d.projection?.status_state || 'unknown'; statuses[s] = (statuses[s]||0)+1; });
+  const people = {};
+  decisions.forEach(d => { const n = d.projection?.initiator_name; if (n) people[n] = (people[n]||0)+1; });
+  const topics = {};
+  decisions.forEach(d => { (d.enrichment?.topics || []).forEach(t => { topics[t] = (topics[t]||0)+1; }); });
+  const convs = new Set(decisions.map(d => d.cid));
+  const decisionStatus = {};
+  decisions.forEach(d => { if (d.projection?.decision_id) decisionStatus[d.projection.decision_id] = d.projection.status_state || 'unknown'; });
+  const clusterDecisions = {};
+  (graphData.edges || []).forEach(e => {
+    if (e.label === 'contains') {
+      if (!clusterDecisions[e.from]) clusterDecisions[e.from] = [];
+      clusterDecisions[e.from].push(e.to);
     }
   });
+  const clusterStatusMap = {};
+  Object.entries(clusterDecisions).forEach(([cid, dids]) => {
+    const cs = {};
+    dids.forEach(did => { const s = decisionStatus[did] || 'unknown'; cs[s] = (cs[s]||0)+1; });
+    clusterStatusMap[cid] = cs;
+  });
+  const attention = decisions.filter(d => {
+    const s = d.projection?.status_state;
+    return s === 'blocked' || s === 'proposed';
+  }).sort((a,b) => {
+    const order = { blocked: 0, proposed: 1 };
+    return (order[a.projection?.status_state] || 2) - (order[b.projection?.status_state] || 2);
+  });
+  return { decisions, clusters, statuses, people, topics, convs, decisionStatus, clusterDecisions, clusterStatusMap, attention };
+}
 
-  let title = raw.label;
-  let fieldsHtml = '';
+/* ================================================================
+   GRAPH VIEW DATA (shared across sub-views)
+   ================================================================ */
+function computeGraphViewData(stats) {
+  const decisionLookup = new Map();
+  stats.decisions.forEach(d => {
+    if (d.projection?.decision_id) decisionLookup.set(d.projection.decision_id, d);
+  });
 
-  if (group === 'decision') {
-    title = meta.subject_label || raw.label;
-    fieldsHtml = buildFields([
-      ['Decision Type', meta.decision_type],
-      ['Action', `${meta.action_type || ''} - ${meta.action_desc || ''}`],
-      ['Status', meta.status_state],
-      ['Blocker', meta.status_blocker],
-      ['Initiator', `${meta.initiator_name || ''} (${meta.initiator_role || ''})`],
-      ['Counterparties', (meta.counterparty_names || []).join(', ')],
-      ['Evidence', meta.evidence_span],
-      ['Confidence', meta.confidence != null ? String(meta.confidence) : null],
-    ]);
-  } else if (group === 'cluster') {
-    title = meta.primary_subject || raw.label;
-    fieldsHtml = buildFields([
-      ['Summary', meta.rolling_summary],
-      ['Decision Count', meta.decision_count != null ? String(meta.decision_count) : null],
-    ]);
-  } else if (group === 'person') {
-    title = meta.name || raw.label;
-    fieldsHtml = buildFields([['Role', meta.role]]);
-  } else if (group === 'entity') {
-    title = meta.name || raw.label;
-    fieldsHtml = buildFields([['Entity Type', meta.type]]);
-  } else if (group === 'fact') {
-    title = meta.key || raw.label;
-    fieldsHtml = buildFields([['Key', meta.key], ['Value', meta.value]]);
-  } else if (group === 'constraint') {
-    title = meta.text || raw.label;
-  } else if (group === 'topic') {
-    title = meta.topic || raw.label;
-  }
-
-  let connHtml = '';
-  if (connected.length) {
-    const grouped = {};
-    connected.forEach(c => {
-      const g = c.group || 'other';
-      if (!grouped[g]) grouped[g] = [];
-      grouped[g].push(c);
-    });
-    connHtml = '<div class="panel-connections">';
-    connHtml += '<div class="section-title">Connected Nodes</div>';
-    for (const [g, items] of Object.entries(grouped)) {
-      const gc = GROUP_COLORS[g] || GROUP_COLORS.decision;
-      items.forEach(c => {
-        const displayLabel = (g === 'decision' && _graphNodesRaw[c.id]?.meta?.subject_label)
-          ? _graphNodesRaw[c.id].meta.subject_label : c.label;
-        connHtml += `<div class="panel-conn-item" data-node-id="${esc(c.id)}">` +
-          `<span class="panel-conn-dot" style="background:${gc.background}"></span>` +
-          `${esc(displayLabel)}` +
-          (c.edge ? ` <small style="color:#aaa">(${esc(c.edge)})</small>` : '') +
-          `</div>`;
-      });
+  // cluster -> decision IDs
+  const clusterDecMap = {};
+  (graphData.edges || []).forEach(e => {
+    if (e.label === 'contains') {
+      if (!clusterDecMap[e.from]) clusterDecMap[e.from] = [];
+      clusterDecMap[e.from].push(e.to);
     }
-    connHtml += '</div>';
-  }
+  });
+  // decision -> cluster
+  const decClusterMap = {};
+  (graphData.edges || []).forEach(e => {
+    if (e.label === 'contains') decClusterMap[e.to] = e.from;
+  });
 
-  const panel = document.querySelector('#detail-panel .panel-inner');
-  panel.innerHTML = `
-    <div class="panel-header">
-      <div class="panel-type-dot" style="background:${colors.background}"></div>
-      <span class="panel-type-label">${esc(GROUP_LABELS[group] || group)}</span>
-    </div>
-    <div class="panel-title">${esc(title)}</div>
-    <div class="panel-id">${esc(nodeId)}</div>
-    ${fieldsHtml}
-    ${connHtml}
-  `;
+  // Cluster details
+  const clusterNodeMap = {};
+  (graphData.nodes || []).filter(n => n.group === 'cluster').forEach(n => { clusterNodeMap[n.id] = n; });
 
-  panel.querySelectorAll('.panel-conn-item').forEach(el => {
-    el.addEventListener('click', () => {
-      const targetId = el.dataset.nodeId;
-      if (_network) {
-        _network.selectNodes([targetId]);
-        _network.focus(targetId, { scale: 1.2, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
-        showDetail(targetId, window._edgesData, null);
+  const clusterDetails = Object.entries(clusterDecMap).map(([cid, dids]) => {
+    const node = clusterNodeMap[cid] || {};
+    const meta = node.meta || {};
+    const decisions = dids.map(did => {
+      const d = decisionLookup.get(did);
+      if (!d) return null;
+      const p = d.projection || {};
+      return {
+        decision_id: did, subject_label: p.subject_label || '', status: p.status_state || 'unknown',
+        initiator: p.initiator_name || '', cid: d.cid || '', action_desc: p.action_desc || '',
+        topics: d.enrichment?.topics || [], blocker: p.status_blocker || null,
+      };
+    }).filter(Boolean);
+    const initiators = [...new Set(decisions.map(d => d.initiator).filter(Boolean))];
+    const statusBreakdown = {};
+    decisions.forEach(d => { statusBreakdown[d.status] = (statusBreakdown[d.status]||0)+1; });
+    return { id: cid, name: meta.primary_subject || '', summary: meta.rolling_summary || '', decisions, initiators, statusBreakdown };
+  });
+
+  // Conversations sorted
+  const conversations = [...stats.convs].sort();
+
+  // Timeline: build theme rows from shared topics
+  const topicDecisions = {};
+  stats.decisions.forEach(d => {
+    const did = d.projection?.decision_id;
+    if (!did) return;
+    (d.enrichment?.topics || []).forEach(t => {
+      if (!topicDecisions[t]) topicDecisions[t] = [];
+      topicDecisions[t].push(did);
+    });
+  });
+  // Topics spanning 2+ conversations
+  const topicConvs = {};
+  Object.entries(topicDecisions).forEach(([topic, dids]) => {
+    const convSet = new Set(dids.map(did => decisionLookup.get(did)?.cid).filter(Boolean));
+    topicConvs[topic] = convSet;
+  });
+  const crossConvTopics = Object.entries(topicConvs)
+    .filter(([, convSet]) => convSet.size >= 2)
+    .sort((a, b) => b[1].size - a[1].size || (topicDecisions[b[0]]?.length || 0) - (topicDecisions[a[0]]?.length || 0));
+
+  // Assign decisions to theme rows (greedy, each decision appears in at most one row)
+  const assigned = new Set();
+  const themeRows = [];
+  crossConvTopics.forEach(([topic]) => {
+    const dids = (topicDecisions[topic] || []).filter(did => !assigned.has(did));
+    if (!dids.length) return;
+    const byConv = {};
+    conversations.forEach(c => { byConv[c] = []; });
+    dids.forEach(did => {
+      const d = decisionLookup.get(did);
+      if (!d) return;
+      const cid = d.cid;
+      if (byConv[cid]) {
+        const p = d.projection || {};
+        byConv[cid].push({
+          decision_id: did, subject_label: p.subject_label || '', status: p.status_state || 'unknown',
+          initiator: p.initiator_name || '', action_desc: p.action_desc || '', blocker: p.status_blocker || null,
+        });
+        assigned.add(did);
       }
     });
+    // Only keep if decisions span 2+ conversations
+    const activeConvs = conversations.filter(c => byConv[c].length > 0);
+    if (activeConvs.length >= 2) {
+      themeRows.push({ topic, decisionsByConv: byConv });
+    } else {
+      // Un-assign if this topic didn't make the cut
+      dids.forEach(did => assigned.delete(did));
+    }
   });
 
-  window._edgesData = edgesData;
+  // Standalone decisions (not assigned to any theme row)
+  const standaloneByCluster = {};
+  stats.decisions.forEach(d => {
+    const did = d.projection?.decision_id;
+    if (!did || assigned.has(did)) return;
+    const clusterId = decClusterMap[did] || '_none';
+    if (!standaloneByCluster[clusterId]) standaloneByCluster[clusterId] = [];
+    const p = d.projection || {};
+    standaloneByCluster[clusterId].push({
+      decision_id: did, subject_label: p.subject_label || '', status: p.status_state || 'unknown',
+      initiator: p.initiator_name || '', cid: d.cid || '', action_desc: p.action_desc || '', blocker: p.status_blocker || null,
+    });
+  });
+
+  // Person x Cluster matrix
+  const persons = Object.keys(stats.people).sort((a,b) => stats.people[b] - stats.people[a]);
+  const matrixCells = new Map();
+  stats.decisions.forEach(d => {
+    const did = d.projection?.decision_id;
+    const person = d.projection?.initiator_name;
+    if (!did || !person) return;
+    const clusterId = decClusterMap[did];
+    if (!clusterId) return;
+    const key = person + ':' + clusterId;
+    if (!matrixCells.has(key)) matrixCells.set(key, { count: 0, statuses: [], decisions: [] });
+    const cell = matrixCells.get(key);
+    cell.count++;
+    cell.statuses.push(d.projection?.status_state || 'unknown');
+    cell.decisions.push({ subject_label: d.projection?.subject_label || '', status: d.projection?.status_state || 'unknown' });
+  });
+
+  const matrixClusters = clusterDetails.map(c => ({ id: c.id, name: c.name }));
+
+  return { clusterDetails, conversations, themeRows, standaloneByCluster, clusterNodeMap, decClusterMap,
+           persons, matrixClusters, matrixCells, decisionLookup };
 }
 
-function buildFields(pairs) {
-  return pairs.filter(([, v]) => v != null && v !== '' && v !== 'null').map(([label, value]) =>
-    `<div class="panel-field"><div class="panel-field-label">${esc(label)}</div><div class="panel-field-value">${esc(value)}</div></div>`
+/* ================================================================
+   INSIGHTS RENDERING
+   ================================================================ */
+function renderInsights(s) {
+  document.getElementById('header-stats').innerHTML =
+    `<b>${s.decisions.length}</b> decisions &middot; <b>${s.clusters.length}</b> clusters &middot; <b>${Object.keys(s.people).length}</b> people &middot; <b>${s.convs.size}</b> conversations`;
+  document.getElementById('stat-cards').innerHTML = [
+    { v: s.decisions.length, l: 'Decisions', c: 'sc-c1' },
+    { v: s.clusters.length, l: 'Clusters', c: 'sc-c2' },
+    { v: Object.keys(s.people).length, l: 'People', c: 'sc-c3' },
+    { v: s.convs.size, l: 'Conversations', c: 'sc-c4' },
+  ].map(x => `<div class="stat-card ${x.c}"><div class="sc-value">${x.v}</div><div class="sc-label">${x.l}</div></div>`).join('');
+
+  const total = s.decisions.length || 1;
+  const statusOrder = ['done','in_progress','proposed','blocked','unknown'];
+  const statusCard = document.getElementById('status-card');
+  let barHtml = '<div class="stacked-bar">';
+  statusOrder.forEach(st => {
+    const count = s.statuses[st] || 0; if (!count) return;
+    const pct = (count / total * 100);
+    barHtml += `<div class="stacked-seg" style="width:${pct}%;background:${STATUS_COLORS[st].bg}"><span>${pct >= 12 ? count : ''}</span></div>`;
+  });
+  barHtml += '</div><div class="status-legend">';
+  statusOrder.forEach(st => {
+    const count = s.statuses[st] || 0; if (!count) return;
+    barHtml += `<div class="sl-item"><div class="sl-dot" style="background:${STATUS_COLORS[st].bg}"></div>${STATUS_LABELS[st]} <span class="sl-count">${count}</span></div>`;
+  });
+  barHtml += '</div>';
+  statusCard.innerHTML = `<div class="card-title">Decision Status</div>${barHtml}`;
+
+  const attCard = document.getElementById('attention-card');
+  let attHtml = '<div class="card-title">Needs Attention</div>';
+  if (!s.attention.length) {
+    attHtml += '<div class="attn-empty">All clear - no blocked or proposed decisions</div>';
+  } else {
+    s.attention.slice(0, 6).forEach(d => {
+      const p = d.projection || {};
+      const st = p.status_state;
+      const c = STATUS_COLORS[st] || STATUS_COLORS.unknown;
+      attHtml += `<div class="attn-item"><div class="attn-dot" style="background:${c.bg}"></div><div>
+        <div class="attn-subject">${esc(p.subject_label || 'Untitled')}</div>
+        <div class="attn-meta">${esc(STATUS_LABELS[st] || st)} &middot; ${esc(p.initiator_name || '-')}</div>
+        ${p.status_blocker ? `<div class="attn-blocker">Blocker: ${esc(p.status_blocker)}</div>` : ''}
+      </div></div>`;
+    });
+  }
+  attCard.innerHTML = attHtml;
+
+  const pplCard = document.getElementById('people-card');
+  const sortedPeople = Object.entries(s.people).sort((a,b) => b[1]-a[1]);
+  const maxP = sortedPeople[0]?.[1] || 1;
+  let pplHtml = '<div class="card-title">Key People</div>';
+  sortedPeople.forEach(([name, count]) => {
+    pplHtml += `<div class="person-row"><div class="person-avatar">${esc(name.charAt(0).toUpperCase())}</div><div class="person-name">${esc(name)}</div><div class="person-bar-wrap"><div class="person-bar" style="width:${count/maxP*100}%"></div></div><div class="person-count">${count}</div></div>`;
+  });
+  pplCard.innerHTML = pplHtml;
+
+  const thCard = document.getElementById('themes-card');
+  const sortedTopics = Object.entries(s.topics).sort((a,b) => b[1]-a[1]).slice(0, 15);
+  let thHtml = '<div class="card-title">Top Themes</div><div class="theme-list">';
+  sortedTopics.forEach(([topic, count]) => {
+    thHtml += `<div class="theme-tag">${esc(topic)} <span class="theme-count">${count}</span></div>`;
+  });
+  thHtml += '</div>';
+  thCard.innerHTML = thHtml;
+
+  const clGrid = document.getElementById('cluster-grid');
+  clGrid.innerHTML = s.clusters.map(c => {
+    const meta = c.meta || {}; const id = c.id;
+    const cStats = s.clusterStatusMap[id] || {};
+    let microBar = '<div class="cc-micro">';
+    ['done','in_progress','proposed','blocked','unknown'].forEach(st => {
+      const n = cStats[st] || 0;
+      if (n) microBar += `<div class="cc-micro-seg" style="flex:${n};background:${STATUS_COLORS[st].bg}"></div>`;
+    });
+    microBar += '</div>';
+    return `<div class="cluster-card" data-cluster-id="${esc(id)}">
+      <div class="cc-name">${esc(meta.primary_subject || 'Cluster')}</div>
+      <div class="cc-summary">${esc(meta.rolling_summary || '')}</div>${microBar}
+      <div class="cc-footer"><span class="cc-count">${meta.decision_count || 0} decisions</span></div></div>`;
+  }).join('');
+
+  clGrid.querySelectorAll('.cluster-card').forEach(el => {
+    el.addEventListener('click', () => {
+      switchTab('graph');
+      switchSubview('explore');
+      setTimeout(() => focusNode(el.dataset.clusterId), 400);
+    });
+  });
+}
+
+/* ================================================================
+   CLUSTER BOARD
+   ================================================================ */
+function renderClusterBoard(data) {
+  const container = document.getElementById('subview-board');
+  const sorted = [...data.clusterDetails].sort((a, b) => {
+    const aBlk = a.decisions.some(d => d.status === 'blocked') ? 0 : 1;
+    const bBlk = b.decisions.some(d => d.status === 'blocked') ? 0 : 1;
+    if (aBlk !== bBlk) return aBlk - bBlk;
+    return b.decisions.length - a.decisions.length;
+  });
+
+  let html = '<div class="cb-grid">';
+  sorted.forEach(cluster => {
+    // Top border color by worst status
+    const worstStatus = cluster.decisions.reduce((w, d) =>
+      (STATUS_PRIORITY[d.status] ?? 4) < (STATUS_PRIORITY[w] ?? 4) ? d.status : w, 'done');
+    const topColor = STATUS_COLORS[worstStatus]?.bg || STATUS_COLORS.unknown.bg;
+
+    html += `<div class="cb-cluster" style="border-top-color:${topColor}">`;
+    html += `<div class="cb-name">${esc(cluster.name)}</div>`;
+    html += `<div class="cb-summary">${esc(cluster.summary)}</div>`;
+    html += '<div class="cb-meta">';
+    html += '<div class="cb-avatars">';
+    cluster.initiators.forEach(name => {
+      html += `<div class="cb-avatar" title="${esc(name)}">${esc(name.charAt(0).toUpperCase())}</div>`;
+    });
+    html += '</div>';
+    html += `<span>${cluster.decisions.length} decision${cluster.decisions.length !== 1 ? 's' : ''}</span>`;
+    html += '</div>';
+    // Mini status bar
+    html += '<div class="cb-minibar">';
+    ['done','in_progress','proposed','blocked','unknown'].forEach(st => {
+      const n = cluster.statusBreakdown[st] || 0;
+      if (n) html += `<div class="cb-minibar-seg" style="flex:${n};background:${STATUS_COLORS[st].bg}"></div>`;
+    });
+    html += '</div>';
+    // Decision chips
+    html += '<div class="cb-decisions">';
+    cluster.decisions.forEach(d => {
+      html += `<div class="cb-chip" data-status="${esc(d.status)}">
+        <span class="cb-chip-label">${esc(d.subject_label)}</span>
+        <span class="cb-chip-person">${esc(d.initiator)}</span>
+      </div>`;
+    });
+    html += '</div></div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/* ================================================================
+   TIMELINE
+   ================================================================ */
+function renderTimeline(data) {
+  const container = document.getElementById('subview-timeline');
+  const convs = data.conversations;
+  const colCount = convs.length + 1; // +1 for theme label column
+
+  let html = `<div class="tl-container"><div class="tl-grid" style="grid-template-columns:200px repeat(${convs.length},1fr)">`;
+
+  // Header row
+  html += '<div class="tl-header">Theme</div>';
+  convs.forEach((c, i) => {
+    const label = c.replace(/^sample_/, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    html += `<div class="tl-header tl-header-conv">${esc(label)}</div>`;
+  });
+
+  // Cross-conversation theme rows
+  if (data.themeRows.length) {
+    html += '<div class="tl-section-label">Cross-Conversation Themes</div>';
+    data.themeRows.forEach(row => {
+      html += `<div class="tl-theme-label">${esc(row.topic)}</div>`;
+      convs.forEach(conv => {
+        const decs = row.decisionsByConv[conv] || [];
+        if (!decs.length) {
+          html += '<div class="tl-cell tl-cell--empty"></div>';
+        } else {
+          html += '<div class="tl-cell">';
+          decs.forEach(d => {
+            html += `<div class="tl-card" data-status="${esc(d.status)}">
+              <div class="tl-card-subject">${esc(d.subject_label)}</div>
+              <div class="tl-card-meta">${esc(d.initiator)} &middot; <span style="color:${STATUS_COLORS[d.status]?.bg || '#94a3b8'}">${esc(STATUS_LABELS[d.status] || d.status)}</span></div>
+              <div class="tl-card-action">${esc(d.action_desc)}</div>
+            </div>`;
+          });
+          html += '</div>';
+        }
+      });
+    });
+  }
+
+  // Standalone decisions
+  const standaloneEntries = Object.entries(data.standaloneByCluster);
+  if (standaloneEntries.length) {
+    html += '<div class="tl-section-label">Standalone Decisions</div>';
+    standaloneEntries.forEach(([clusterId, decs]) => {
+      const clusterNode = data.clusterNodeMap[clusterId];
+      const clusterName = clusterNode?.meta?.primary_subject || 'Other';
+      html += `<div class="tl-theme-label" style="color:var(--text-2);font-size:.75rem">${esc(clusterName)}</div>`;
+      convs.forEach(conv => {
+        const convDecs = decs.filter(d => d.cid === conv);
+        if (!convDecs.length) {
+          html += '<div class="tl-cell tl-cell--empty"></div>';
+        } else {
+          html += '<div class="tl-cell">';
+          convDecs.forEach(d => {
+            html += `<div class="tl-card" data-status="${esc(d.status)}">
+              <div class="tl-card-subject">${esc(d.subject_label)}</div>
+              <div class="tl-card-meta">${esc(d.initiator)} &middot; <span style="color:${STATUS_COLORS[d.status]?.bg || '#94a3b8'}">${esc(STATUS_LABELS[d.status] || d.status)}</span></div>
+            </div>`;
+          });
+          html += '</div>';
+        }
+      });
+    });
+  }
+
+  html += '</div></div>';
+
+  // Legend
+  html += '<div style="display:flex;gap:1rem;margin-top:.75rem;font-size:.75rem;color:var(--text-2);flex-wrap:wrap">';
+  html += '<span style="font-weight:600">Status:</span>';
+  ['done','in_progress','proposed','blocked'].forEach(s => {
+    html += `<span style="display:flex;align-items:center;gap:.25rem"><span style="width:3px;height:14px;border-radius:2px;background:${STATUS_COLORS[s].bg}"></span>${STATUS_LABELS[s]}</span>`;
+  });
+  html += '<span style="margin-left:auto;color:var(--text-3)">Hatched cells = no activity in that conversation</span>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+/* ================================================================
+   PERSON x CLUSTER MATRIX
+   ================================================================ */
+function renderMatrix(data) {
+  const container = document.getElementById('subview-matrix');
+  const { persons, matrixClusters, matrixCells } = data;
+
+  // Filter to clusters with at least 1 person involvement
+  const activeClusters = matrixClusters.filter(c =>
+    persons.some(p => matrixCells.has(p + ':' + c.id))
+  );
+
+  let html = '<div class="mx-container"><table class="mx-table">';
+  html += '<thead><tr><th></th>';
+  activeClusters.forEach(c => {
+    const short = c.name.length > 40 ? c.name.substring(0, 38) + '...' : c.name;
+    html += `<th><div class="mx-col-header" title="${esc(c.name)}">${esc(short)}</div></th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  persons.forEach(person => {
+    html += `<tr><td class="mx-row-header">${esc(person)}</td>`;
+    activeClusters.forEach(c => {
+      const key = person + ':' + c.id;
+      const cell = matrixCells.get(key);
+      if (!cell) {
+        html += '<td class="mx-cell mx-cell--empty"></td>';
+      } else {
+        const worstStatus = cell.statuses.reduce((w, s) =>
+          (STATUS_PRIORITY[s] ?? 4) < (STATUS_PRIORITY[w] ?? 4) ? s : w, 'done');
+        const color = STATUS_COLORS[worstStatus] || STATUS_COLORS.unknown;
+        const tooltipLines = cell.decisions.map(d => d.subject_label + ' (' + (STATUS_LABELS[d.status] || d.status) + ')').join('\n');
+        html += `<td class="mx-cell" style="background:${color.bg}15" title="${esc(tooltipLines)}">`;
+        html += `<div class="mx-cell-count" style="color:${color.bg}">${cell.count}</div>`;
+        html += '<div class="mx-cell-dots">';
+        cell.statuses.forEach(s => {
+          html += `<div class="mx-cell-dot" style="background:${STATUS_COLORS[s]?.bg || '#94a3b8'}"></div>`;
+        });
+        html += '</div></td>';
+      }
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+
+  // Legend
+  html += '<div class="mx-legend"><span class="mx-legend-label">Cell color = worst status:</span>';
+  ['blocked','proposed','in_progress','done'].forEach(s => {
+    html += `<span class="mx-legend-item"><span class="mx-legend-dot" style="background:${STATUS_COLORS[s].bg}"></span>${STATUS_LABELS[s]}</span>`;
+  });
+  html += '<span style="margin-left:auto;color:var(--text-3)">Hover cells for details</span></div>';
+
+  container.innerHTML = html;
+}
+
+/* ================================================================
+   EXPLORE (existing force-directed graph)
+   ================================================================ */
+function prepareGraphData(stats) {
+  const decLabelMap = {};
+  (outputData.projections || []).forEach(p => {
+    const proj = p.projection || {};
+    if (proj.decision_id && proj.subject_label) decLabelMap[proj.decision_id] = proj.subject_label;
+  });
+  graphData.nodes.forEach(n => { nodeRawMap[n.id] = n; });
+  allVisNodes = graphData.nodes.map(n => {
+    const group = n.group || 'decision';
+    const meta = n.meta || {};
+    let color;
+    if (group === 'decision') {
+      const sc = STATUS_COLORS[meta.status_state || 'unknown'] || STATUS_COLORS.unknown;
+      color = { background: sc.bg, border: sc.border, highlight: { background: sc.bg, border: '#4f46e5' }, hover: { background: sc.bg, border: sc.border } };
+    } else {
+      const gc = GROUP_COLORS[group] || GROUP_COLORS.cluster;
+      color = { background: gc.bg, border: gc.border, highlight: { background: gc.bg, border: '#4f46e5' }, hover: { background: gc.bg, border: gc.border } };
+    }
+    let label = n.label;
+    if (group === 'decision') label = decLabelMap[n.id] || meta.subject_label || n.id.substring(0, 8);
+    if (label && label.length > 30) label = label.substring(0, 28) + '...';
+    const size = group === 'cluster' ? 38 : group === 'decision' ? 22 : group === 'person' ? 20 : 14;
+    const fontSize = group === 'cluster' ? 14 : group === 'decision' ? 11 : 10;
+    return {
+      id: n.id, label, shape: GROUP_SHAPES[group] || 'dot', color,
+      font: { size: fontSize, color: '#1e293b', strokeWidth: 4, strokeColor: '#ffffff', bold: { color: '#0f172a', size: fontSize + 1, mod: 'bold' } },
+      size, _group: group, _meta: meta,
+    };
+  });
+  allVisEdges = graphData.edges.map((e, i) => ({
+    id: i, from: e.from, to: e.to, label: e.label || '',
+    font: { size: 9, color: '#64748b', strokeWidth: 3, strokeColor: '#ffffff' },
+    arrows: e.label === 'initiated' ? { to: { enabled: true, scaleFactor: 0.5 } } : '',
+    color: { color: '#cbd5e1', highlight: '#4f46e5', opacity: 0.8 },
+    smooth: { type: 'continuous' },
+  }));
+}
+
+function renderLayerToggles() {
+  const counts = {};
+  Object.entries(LAYERS).forEach(([key, layer]) => {
+    counts[key] = allVisNodes.filter(n => layer.groups.has(n._group)).length;
+  });
+  const el = document.getElementById('layer-toggles');
+  el.innerHTML = Object.entries(LAYERS).map(([key, layer]) =>
+    `<button class="layer-btn ${key === currentLayer ? 'active' : ''}" data-layer="${key}">${layer.label}<span class="lbl-count">(${counts[key]})</span></button>`
   ).join('');
+  el.querySelectorAll('.layer-btn').forEach(btn => {
+    btn.addEventListener('click', () => setLayer(btn.dataset.layer));
+  });
 }
 
+function renderGraphLegend() {
+  const el = document.getElementById('graph-legend');
+  let html = '';
+  html += `<div class="gl-item"><div class="gl-diamond" style="background:${GROUP_COLORS.cluster.bg}"></div>Cluster</div>`;
+  html += `<div class="gl-item"><div class="gl-dot" style="background:#94a3b8"></div>Decision</div>`;
+  html += `<div class="gl-item"><div class="gl-dot" style="background:${GROUP_COLORS.person.bg}"></div>Person</div>`;
+  html += '<div class="gl-sep">|</div>';
+  Object.entries(STATUS_COLORS).forEach(([st, c]) => {
+    if (st === 'unknown') return;
+    html += `<div class="gl-item"><div class="gl-dot" style="background:${c.bg}"></div>${STATUS_LABELS[st]}</div>`;
+  });
+  el.innerHTML = html;
+}
+
+function highlightNeighborhood(nodeId) {
+  const connectedNodes = new Set([nodeId]);
+  const connectedEdges = new Set();
+  edgesDS.forEach(e => {
+    if (e.from === nodeId || e.to === nodeId) {
+      connectedNodes.add(e.from);
+      connectedNodes.add(e.to);
+      connectedEdges.add(e.id);
+    }
+  });
+  nodesDS.forEach(n => {
+    nodesDS.update({ id: n.id, opacity: connectedNodes.has(n.id) ? 1 : 0.12 });
+  });
+  edgesDS.forEach(e => {
+    if (connectedEdges.has(e.id)) {
+      edgesDS.update({ id: e.id, color: { color: '#4f46e5', highlight: '#4f46e5', opacity: 1 }, width: 2.5 });
+    } else {
+      edgesDS.update({ id: e.id, color: { color: '#cbd5e1', highlight: '#4f46e5', opacity: 0.08 }, width: 1 });
+    }
+  });
+}
+
+function clearHighlight() {
+  nodesDS.forEach(n => { nodesDS.update({ id: n.id, opacity: 1 }); });
+  edgesDS.forEach(e => {
+    edgesDS.update({ id: e.id, color: { color: '#cbd5e1', highlight: '#4f46e5', opacity: 0.8 }, width: 1 });
+  });
+}
+
+function initGraph() {
+  renderLayerToggles();
+  renderGraphLegend();
+  const { nodes, edges } = getLayerData(currentLayer);
+  nodesDS = new vis.DataSet(nodes);
+  edgesDS = new vis.DataSet(edges);
+  const container = document.getElementById('graph-canvas');
+  network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+    physics: {
+      solver: 'forceAtlas2Based',
+      forceAtlas2Based: { gravitationalConstant: -60, centralGravity: 0.012, springLength: 110, springConstant: 0.06, damping: 0.4 },
+      stabilization: { iterations: 250 },
+    },
+    interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
+    nodes: { borderWidth: 2, borderWidthSelected: 5 },
+    edges: { selectionWidth: 2.5 },
+    layout: { improvedLayout: true },
+  });
+  network.on('click', params => {
+    if (params.nodes.length) {
+      highlightNeighborhood(params.nodes[0]);
+      showNodeDetail(params.nodes[0]);
+    } else {
+      clearHighlight();
+    }
+  });
+  network.on('deselectNode', () => {
+    clearHighlight();
+    document.querySelector('#detail-panel .panel-inner').innerHTML = '<div class="panel-placeholder">Click a node to inspect</div>';
+  });
+  document.getElementById('graph-search').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+    if (!q) { nodesDS.forEach(n => nodesDS.update({ id: n.id, opacity: 1 })); return; }
+    nodesDS.forEach(n => {
+      const match = n.label?.toLowerCase().includes(q);
+      nodesDS.update({ id: n.id, opacity: match ? 1 : 0.15 });
+    });
+    const firstMatch = nodesDS.get().find(n => n.label?.toLowerCase().includes(q));
+    if (firstMatch) network.focus(firstMatch.id, { scale: 1.0, animation: { duration: 300 } });
+  });
+}
+
+function getLayerData(layer) {
+  const groups = LAYERS[layer].groups;
+  const visibleIds = new Set();
+  const nodes = allVisNodes.filter(n => { if (groups.has(n._group)) { visibleIds.add(n.id); return true; } return false; });
+  const edges = allVisEdges.filter(e => visibleIds.has(e.from) && visibleIds.has(e.to));
+  return { nodes, edges };
+}
+
+function setLayer(layer) {
+  currentLayer = layer;
+  const { nodes, edges } = getLayerData(layer);
+  nodesDS.clear(); edgesDS.clear();
+  nodesDS.add(nodes); edgesDS.add(edges);
+  renderLayerToggles();
+  const n = nodes.length;
+  network.setOptions({ physics: { forceAtlas2Based: { gravitationalConstant: n > 150 ? -30 : n > 80 ? -45 : -60 } } });
+}
+
+function focusNode(nodeId) {
+  if (!network) return;
+  const raw = nodeRawMap[nodeId];
+  if (raw) {
+    for (const [key, layer] of Object.entries(LAYERS)) {
+      if (layer.groups.has(raw.group)) { if (key !== currentLayer) setLayer(key); break; }
+    }
+  }
+  network.selectNodes([nodeId]);
+  network.focus(nodeId, { scale: 1.2, animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+  highlightNeighborhood(nodeId);
+  showNodeDetail(nodeId);
+}
+
+function showNodeDetail(nodeId) {
+  const raw = nodeRawMap[nodeId]; if (!raw) return;
+  const group = raw.group || 'decision';
+  const meta = raw.meta || {};
+  const gc = group === 'decision' ? STATUS_COLORS[meta.status_state || 'unknown'] : (GROUP_COLORS[group] || GROUP_COLORS.cluster);
+  const connected = [];
+  (graphData.edges || []).forEach(e => {
+    let other = null;
+    if (e.from === nodeId) other = e.to; else if (e.to === nodeId) other = e.from;
+    if (other && nodeRawMap[other]) connected.push({ id: other, label: nodeRawMap[other].label, group: nodeRawMap[other].group, edge: e.label || '', meta: nodeRawMap[other].meta || {} });
+  });
+  let enrichment = null;
+  if (group === 'decision') {
+    const proj = (outputData.projections || []).find(p => p.projection?.decision_id === nodeId);
+    if (proj) enrichment = proj.enrichment;
+  }
+  let html = `<div class="panel-header"><div class="panel-dot" style="background:${gc.bg}"></div><span class="panel-type">${esc(group)}</span></div>`;
+  if (group === 'decision') {
+    const st = meta.status_state || 'unknown'; const sc = STATUS_COLORS[st];
+    html += `<div class="panel-title">${esc(meta.subject_label || raw.label)}</div>`;
+    html += `<div class="panel-badge" style="background:${sc.bg}20;color:${sc.bg}">${esc(STATUS_LABELS[st] || st)}</div>`;
+    html += field('Action', `${meta.action_type || ''} - ${meta.action_desc || ''}`);
+    html += field('Initiator', `${meta.initiator_name || ''} (${meta.initiator_role || ''})`);
+    if ((meta.counterparty_names || []).length) html += field('With', meta.counterparty_names.join(', '));
+    if (meta.status_blocker) html += field('Blocker', meta.status_blocker);
+    if (meta.evidence_span) html += field('Evidence', meta.evidence_span);
+    if (meta.confidence != null) html += field('Confidence', (meta.confidence * 100).toFixed(0) + '%');
+    if (enrichment?.topics?.length) html += `<div class="panel-field"><div class="panel-fl">Topics</div><div class="panel-tags">${enrichment.topics.map(t => `<span class="panel-tag pt-topic">${esc(t)}</span>`).join('')}</div></div>`;
+    if (enrichment?.entities?.length) html += `<div class="panel-field"><div class="panel-fl">Entities</div><div class="panel-tags">${enrichment.entities.map(e => `<span class="panel-tag pt-entity">${esc(e.name||'')} (${esc(e.type||'')})</span>`).join('')}</div></div>`;
+  } else if (group === 'cluster') {
+    html += `<div class="panel-title">${esc(meta.primary_subject || raw.label)}</div>`;
+    if (meta.rolling_summary) html += field('Summary', meta.rolling_summary);
+    if (meta.decision_count != null) html += field('Decisions', String(meta.decision_count));
+  } else if (group === 'person') {
+    html += `<div class="panel-title">${esc(meta.name || raw.label)}</div>`;
+    if (meta.role) html += field('Role', meta.role);
+  } else if (group === 'topic') {
+    html += `<div class="panel-title">${esc(meta.topic || raw.label)}</div>`;
+  } else if (group === 'entity') {
+    html += `<div class="panel-title">${esc(meta.name || raw.label)}</div>`;
+    if (meta.type) html += field('Type', meta.type);
+  } else if (group === 'fact') {
+    html += `<div class="panel-title">${esc(meta.key || raw.label)}</div>`;
+    if (meta.value) html += field('Value', meta.value);
+  } else if (group === 'constraint') {
+    html += `<div class="panel-title">${esc(meta.text || raw.label)}</div>`;
+  }
+  if (connected.length) {
+    const grouped = {};
+    connected.forEach(c => { const g = c.group || 'other'; if (!grouped[g]) grouped[g] = []; grouped[g].push(c); });
+    html += '<div class="panel-conns"><div class="panel-conns-title">Connected</div>';
+    for (const [g, items] of Object.entries(grouped)) {
+      const gc2 = g === 'decision' ? STATUS_COLORS.unknown : (GROUP_COLORS[g] || GROUP_COLORS.cluster);
+      items.forEach(c => {
+        let dlabel = c.label;
+        if (g === 'decision' && c.meta?.subject_label) dlabel = c.meta.subject_label;
+        if (dlabel && dlabel.length > 35) dlabel = dlabel.substring(0, 33) + '...';
+        const dotColor = g === 'decision' ? (STATUS_COLORS[c.meta?.status_state || 'unknown']?.bg || gc2.bg) : gc2.bg;
+        html += `<div class="panel-conn" data-nid="${esc(c.id)}"><div class="pc-dot" style="background:${dotColor}"></div>${esc(dlabel)}${c.edge ? ` <small style="color:var(--text-3)">(${esc(c.edge)})</small>` : ''}</div>`;
+      });
+    }
+    html += '</div>';
+  }
+  const panel = document.querySelector('#detail-panel .panel-inner');
+  panel.innerHTML = html;
+  panel.querySelectorAll('.panel-conn').forEach(el => {
+    el.addEventListener('click', () => focusNode(el.dataset.nid));
+  });
+}
+
+function field(label, value) {
+  if (!value || value === 'null' || value === ' - ') return '';
+  return `<div class="panel-field"><div class="panel-fl">${esc(label)}</div><div class="panel-fv">${esc(value)}</div></div>`;
+}
+
+/* ================================================================
+   DECISIONS RENDERING
+   ================================================================ */
+function renderDecisions(stats) {
+  const personSelect = document.getElementById('filter-person');
+  personSelect.innerHTML = '<option value="">All people</option>' +
+    Object.keys(stats.people).sort().map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+  const decCluster = {};
+  (graphData.edges || []).forEach(e => { if (e.label === 'contains') decCluster[e.to] = e.from; });
+  const clusterMap = {};
+  (graphData.nodes || []).filter(n => n.group === 'cluster').forEach(n => { clusterMap[n.id] = n.meta || {}; });
+  const grouped = {}; const ungrouped = [];
+  stats.decisions.forEach(d => {
+    const did = d.projection?.decision_id;
+    const cid = did ? decCluster[did] : null;
+    if (cid) { if (!grouped[cid]) grouped[cid] = []; grouped[cid].push(d); } else { ungrouped.push(d); }
+  });
+  function renderGroup(clusterId, clusterMeta, items) {
+    const name = clusterMeta?.primary_subject || 'Uncategorized';
+    let h = `<div class="cluster-section" data-cluster="${esc(clusterId || '')}">`;
+    h += `<div class="cs-header"><div class="cs-dot"></div><span class="cs-name">${esc(name)}</span><span class="cs-count">${items.length} decision${items.length !== 1 ? 's' : ''}</span></div>`;
+    h += '<div class="dec-grid">';
+    items.forEach(d => { h += renderDecisionCard(d); });
+    h += '</div></div>';
+    return h;
+  }
+  let html = '';
+  Object.entries(grouped).forEach(([cid, items]) => { html += renderGroup(cid, clusterMap[cid], items); });
+  if (ungrouped.length) html += renderGroup(null, { primary_subject: 'Uncategorized' }, ungrouped);
+  document.getElementById('decision-list').innerHTML = html || '<div class="empty-state">No decisions found.</div>';
+  ['filter-status','filter-person','filter-search'].forEach(id => {
+    document.getElementById(id).addEventListener(id === 'filter-search' ? 'input' : 'change', applyFilters);
+  });
+}
+
+function renderDecisionCard(d) {
+  const p = d.projection || {}; const e = d.enrichment || {};
+  const st = p.status_state || 'unknown';
+  const topics = e.topics || []; const entities = e.entities || []; const keyFacts = e.key_facts || [];
+  let h = `<div class="dec-card" data-status="${esc(st)}" data-person="${esc(p.initiator_name || '')}" data-text="${esc((p.subject_label||'')+' '+(p.action_desc||'')+' '+(p.initiator_name||'')+' '+topics.join(' '))}">`;
+  h += `<div class="dc-header"><span class="dc-subject">${esc(p.subject_label || 'Untitled')}</span>`;
+  h += `<div class="dc-badges"><span class="badge badge-type">${esc(p.decision_type || '')}</span><span class="badge badge-${st}">${esc(STATUS_LABELS[st] || st)}</span></div></div>`;
+  h += `<div class="dc-action">${esc(p.action_desc || '-')}</div>`;
+  h += `<div class="dc-meta"><span><span class="dc-ml">Initiator:</span> ${esc(p.initiator_name || '-')}</span>`;
+  if ((p.counterparty_names||[]).length) h += `<span><span class="dc-ml">With:</span> ${esc(p.counterparty_names.join(', '))}</span>`;
+  h += '</div>';
+  if (p.status_blocker) h += `<div class="dc-blocker">Blocker: ${esc(p.status_blocker)}</div>`;
+  if (topics.length) h += `<div class="dc-section"><div class="dc-st">Topics</div><div class="dc-tags">${topics.map(t => `<span class="dc-tag">${esc(t)}</span>`).join('')}</div></div>`;
+  if (entities.length) h += `<div class="dc-section"><div class="dc-st">Entities</div><div class="dc-tags">${entities.map(x => `<span class="dc-tag dc-tag-ent">${esc(typeof x==='object'?(x.name||''):x)}</span>`).join('')}</div></div>`;
+  if (keyFacts.length) h += `<div class="dc-section"><div class="dc-st">Key Facts</div><ul class="dc-kv">${keyFacts.slice(0,4).map(f => `<li><span class="dc-kvk">${esc(typeof f==='object'?f.k:'')}</span>: ${esc(typeof f==='object'?f.v:f)}</li>`).join('')}</ul></div>`;
+  h += '</div>';
+  return h;
+}
+
+function applyFilters() {
+  const status = document.getElementById('filter-status').value;
+  const person = document.getElementById('filter-person').value;
+  const search = document.getElementById('filter-search').value.toLowerCase();
+  document.querySelectorAll('.dec-card').forEach(card => {
+    const ok = (!status || card.dataset.status === status) && (!person || card.dataset.person === person) && (!search || card.dataset.text?.toLowerCase().includes(search));
+    card.style.display = ok ? '' : 'none';
+  });
+  document.querySelectorAll('.cluster-section').forEach(sec => {
+    const hidden = sec.querySelectorAll('.dec-card[style*="none"]');
+    sec.style.display = hidden.length === sec.querySelectorAll('.dec-card').length ? 'none' : '';
+  });
+}
+
+/* ================================================================
+   SUB-VIEW SWITCHING
+   ================================================================ */
+function switchSubview(name) {
+  activeSubview = name;
+  document.querySelectorAll('.subnav-btn').forEach(b => b.classList.toggle('active', b.dataset.subview === name));
+  document.querySelectorAll('.graph-subview').forEach(v => v.classList.toggle('active', v.id === 'subview-' + name));
+  if (!subviewRendered[name]) {
+    switch (name) {
+      case 'board': renderClusterBoard(graphViewData); break;
+      case 'timeline': renderTimeline(graphViewData); break;
+      case 'matrix': renderMatrix(graphViewData); break;
+      case 'explore': initGraph(); break;
+    }
+    subviewRendered[name] = true;
+  }
+  if (name === 'explore' && network) setTimeout(() => network.redraw(), 50);
+}
+
+/* ================================================================
+   TAB SWITCHING
+   ================================================================ */
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+  if (name === 'graph' && activeSubview === 'explore' && network) setTimeout(() => network.redraw(), 50);
+}
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
+
+/* ================================================================
+   UTILITIES
+   ================================================================ */
 function esc(s) { const d = document.createElement('div'); d.textContent = String(s||''); return d.innerHTML; }
 
-load();
+/* ================================================================
+   INIT
+   ================================================================ */
+function init() {
+  const stats = computeStats();
+  renderInsights(stats);
+  prepareGraphData(stats);
+  renderDecisions(stats);
+  graphViewData = computeGraphViewData(stats);
+  renderClusterBoard(graphViewData);
+  subviewRendered.board = true;
+  document.querySelectorAll('.subnav-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchSubview(btn.dataset.subview));
+  });
+}
+
+loadData();
 </script>
 </body>
 </html>
