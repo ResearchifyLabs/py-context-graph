@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-04-03
+
 ### Changed
 - Refactored decision-pair matching into a pluggable `MatchScorer` protocol with a default `SimpleJaccardScorer` implementation, replacing the previous hard-coded scoring functions
 - Moved stop words from inline constant to external `core/stop_words.txt` file
