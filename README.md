@@ -4,7 +4,8 @@ Extract, enrich, cluster, and query decisions from unstructured conversations us
 
 [![Tests](https://github.com/ResearchifyLabs/py-context-graph/actions/workflows/test.yml/badge.svg)](https://github.com/ResearchifyLabs/py-context-graph/actions/workflows/test.yml)
 [![PyPI](https://img.shields.io/pypi/v/py-context-graph)](https://pypi.org/project/py-context-graph/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/pypi/pyversions/py-context-graph)](https://pypi.org/project/py-context-graph/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 ## What is this?
 
