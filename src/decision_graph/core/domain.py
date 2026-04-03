@@ -1,17 +1,27 @@
 import re
 import uuid
-from typing import Any, Dict, List, Literal
+from typing import (
+    Any,
+    Dict,
+    List,
+    Literal
+)
 
-import pydantic
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices
+from pydantic import BaseModel as PydanticBaseModel
+from pydantic import (
+    ConfigDict,
+    Field,
+    field_validator
+)
 
 
-class BaseModel(pydantic.BaseModel):
-    model_config = pydantic.ConfigDict(extra="forbid", use_enum_values=True)
+class BaseModel(PydanticBaseModel):
+    model_config = ConfigDict(extra="forbid", use_enum_values=True)
 
 
 class _Debug(BaseModel):
-    reasoning: str = pydantic.Field(
+    reasoning: str = Field(
         ...,
         description="Concise and clear justification for extracted field values and validation decisions",
     )

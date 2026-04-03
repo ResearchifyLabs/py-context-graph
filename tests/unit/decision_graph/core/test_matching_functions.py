@@ -5,19 +5,17 @@ from decision_graph.context_retrieval import (
     DecisionContextRetriever as ClusteringContextRetriever,
 )
 from decision_graph.core.matching import (
+    SimpleJaccardScorer,
     build_conversation_fingerprint,
     calculate_jaccard,
     calculate_max_subject_match,
     calculate_sequence_match,
     canonicalize_subject_label,
     dedupe_list,
-    idf_weighted_jaccard,
     jaccard_similarity,
     merge_decision_trace_history,
     normalize_component,
     normalize_entity,
-    precompute_decision,
-    score_decision_pair,
     sequence_similarity,
     tokenize_specifics,
 )
@@ -423,174 +421,52 @@ class TestTokenizeSpecifics(unittest.TestCase):
         self.assertIn("document", tokens)
 
 
-class TestPrecomputeDecision(unittest.TestCase):
-    def test_creates_all_precomputed_sets(self):
-        d = precompute_decision(
-            {
-                "topics": ["Code Review", "testing"],
-                "person_entities": ["Alice"],
-                "non_person_entities": ["ResearchifyLabs"],
-                "subject_label": "PR Review",
-                "key_facts": ["PR #3226 approved"],
-                "action_params": {"target": "main branch"},
-            }
-        )
-        self.assertEqual(d["_topics_set"], {"code", "review", "testing"})
-        self.assertIn("alice", d["_person_set"])
-        self.assertIn("researchifylabs", d["_non_person_set"])
-        self.assertEqual(d["_subject_lower"], "pr review")
-        self.assertIsInstance(d["_specifics_set"], set)
+class TestSimpleJaccardScorer(unittest.TestCase):
+    def setUp(self):
+        self.scorer = SimpleJaccardScorer()
 
-    def test_specifics_deduplicated_against_topics(self):
-        d = precompute_decision(
-            {
-                "topics": ["deployment"],
-                "person_entities": [],
-                "non_person_entities": [],
-                "key_facts": ["deployment to staging"],
-                "action_params": {},
-            }
-        )
-        self.assertNotIn("deployment", d["_specifics_set"])
-        self.assertIn("staging", d["_specifics_set"])
+    def test_identical_decisions_score_one(self):
+        d = {"subject_label": "autojoin meeting feature", "topics": ["autojoin", "meetings"]}
+        p = self.scorer.precompute(d)
+        scores = self.scorer.score_pair(p, p)
+        self.assertAlmostEqual(scores["combined_score"], 1.0)
 
-    def test_missing_fields_produce_empty_sets(self):
-        d = precompute_decision({})
-        self.assertEqual(d["_topics_set"], set())
-        self.assertEqual(d["_person_set"], set())
-        self.assertEqual(d["_non_person_set"], set())
-        self.assertEqual(d["_specifics_set"], set())
-        self.assertEqual(d["_subject_lower"], "")
+    def test_completely_different_scores_zero(self):
+        a = self.scorer.precompute({"subject_label": "quantum physics experiment", "topics": ["physics", "quantum"]})
+        b = self.scorer.precompute({"subject_label": "logo redesign branding", "topics": ["branding", "design"]})
+        scores = self.scorer.score_pair(a, b)
+        self.assertAlmostEqual(scores["combined_score"], 0.0)
 
+    def test_partial_overlap(self):
+        a = self.scorer.precompute({"subject_label": "autojoin meeting feature", "topics": ["autojoin", "meetings", "backend"]})
+        b = self.scorer.precompute({"subject_label": "autojoin meeting setup", "topics": ["autojoin", "meetings", "frontend"]})
+        scores = self.scorer.score_pair(a, b)
+        self.assertGreater(scores["combined_score"], 0.4)
+        self.assertLess(scores["combined_score"], 1.0)
 
-class TestIdfWeightedJaccard(unittest.TestCase):
-    def test_plain_jaccard(self):
-        score = idf_weighted_jaccard({"a", "b", "c"}, {"b", "c", "d"})
-        self.assertAlmostEqual(score, 2 / 4)
+    def test_returns_required_keys(self):
+        d = self.scorer.precompute({"subject_label": "test", "topics": ["topic1"]})
+        scores = self.scorer.score_pair(d, d)
+        self.assertIn("combined_score", scores)
+        self.assertIn("subject_score", scores)
+        self.assertIn("topic_score", scores)
 
-    def test_both_empty(self):
-        self.assertAlmostEqual(idf_weighted_jaccard(set(), set()), 0.0)
+    def test_empty_decisions_score_zero(self):
+        d = self.scorer.precompute({"subject_label": "", "topics": []})
+        scores = self.scorer.score_pair(d, d)
+        self.assertAlmostEqual(scores["combined_score"], 0.0)
 
-    def test_identical_sets(self):
-        self.assertAlmostEqual(idf_weighted_jaccard({"a", "b"}, {"a", "b"}), 1.0)
-
-    def test_disjoint_sets(self):
-        self.assertAlmostEqual(idf_weighted_jaccard({"a"}, {"b"}), 0.0)
-
-
-class TestScoreDecisionPair(unittest.TestCase):
-    def _make_decision(self, **kwargs):
-        base = {
-            "topics": [],
-            "person_entities": [],
-            "non_person_entities": [],
-            "subject_label": "",
-            "key_facts": [],
-            "action_params": {},
-        }
-        base.update(kwargs)
-        return precompute_decision(base)
-
-    def test_identical_decisions_score_high(self):
-        d = self._make_decision(
-            topics=["pricing"],
-            person_entities=["Alice"],
-            non_person_entities=["Acme"],
-            subject_label="pricing update",
-            key_facts=["Q1 contract"],
-        )
-        scores = score_decision_pair(d, d)
-        self.assertGreater(scores["combined_score"], 0.8)
-
-    def test_completely_different_scores_low(self):
-        a = self._make_decision(
-            topics=["hiring"],
-            person_entities=["Bob"],
-            non_person_entities=["Google"],
-            subject_label="new hire",
-        )
-        b = self._make_decision(
-            topics=["deployment"],
-            person_entities=["Alice"],
-            non_person_entities=["AWS"],
-            subject_label="prod release",
-        )
-        scores = score_decision_pair(a, b)
-        self.assertLess(scores["combined_score"], 0.1)
-
-    def test_specifics_mismatch_penalty_fires(self):
-        a = self._make_decision(
-            topics=["code review"],
-            subject_label="PR review",
-            key_facts=["migration-script v2.1"],
-        )
-        b = self._make_decision(
-            topics=["code review"],
-            subject_label="PR review",
-            key_facts=["dashboard-widget refactor"],
-        )
-        scores = score_decision_pair(a, b)
-        self.assertEqual(scores["specifics_penalty"], 0.85)
-
-    def test_entity_mismatch_penalty_fires(self):
-        a = self._make_decision(
-            topics=["meeting"],
-            non_person_entities=["ProjectAlpha"],
-            subject_label="meeting notes",
-        )
-        b = self._make_decision(
-            topics=["meeting"],
-            non_person_entities=["ProjectBeta"],
-            subject_label="meeting notes",
-        )
-        scores = score_decision_pair(a, b)
-        self.assertEqual(scores["entity_penalty"], 0.85)
-
-    def test_person_mismatch_penalty_fires(self):
-        a = self._make_decision(
-            topics=["out of office"],
-            person_entities=["Akshay"],
-            subject_label="OOO announcement",
-        )
-        b = self._make_decision(
-            topics=["out of office"],
-            person_entities=["Neeraj"],
-            subject_label="OOO announcement",
-        )
-        scores = score_decision_pair(a, b)
-        self.assertEqual(scores["person_penalty"], 0.85)
-
-    def test_no_penalties_when_entities_match(self):
-        a = self._make_decision(
-            topics=["sprint planning"],
-            person_entities=["Alice"],
-            non_person_entities=["ProjectX"],
-            subject_label="sprint",
-            key_facts=["Sprint 42 goals"],
-        )
-        b = self._make_decision(
-            topics=["sprint planning"],
-            person_entities=["Alice"],
-            non_person_entities=["ProjectX"],
-            subject_label="sprint",
-            key_facts=["Sprint 42 review"],
-        )
-        scores = score_decision_pair(a, b)
-        self.assertEqual(scores["specifics_penalty"], 1.0)
-        self.assertEqual(scores["entity_penalty"], 1.0)
-        self.assertEqual(scores["person_penalty"], 1.0)
-
-    def test_backward_compat_entity_score(self):
-        a = self._make_decision(non_person_entities=["Acme"])
-        b = self._make_decision(non_person_entities=["Acme"])
-        scores = score_decision_pair(a, b)
-        self.assertIn("entity_score", scores)
-
-    def test_empty_decisions(self):
-        a = self._make_decision()
-        b = self._make_decision()
-        scores = score_decision_pair(a, b)
-        self.assertEqual(scores["combined_score"], 0.0)
+    def test_ignores_entities_and_specifics(self):
+        a = self.scorer.precompute({
+            "subject_label": "meeting notes", "topics": ["meetings"],
+            "non_person_entities": ["ProjectAlpha"], "key_facts": ["v1.0"],
+        })
+        b = self.scorer.precompute({
+            "subject_label": "meeting notes", "topics": ["meetings"],
+            "non_person_entities": ["ProjectBeta"], "key_facts": ["v2.0"],
+        })
+        scores = self.scorer.score_pair(a, b)
+        self.assertAlmostEqual(scores["combined_score"], 1.0)
 
 
 def _seed_projection_and_enrichment(backend, decision_id, cid, gid, subject_label, topics, entities):
