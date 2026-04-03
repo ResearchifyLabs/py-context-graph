@@ -1,15 +1,14 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from decision_graph.core.interfaces import VectorIndex
+from decision_graph.core.interfaces import MatchScorer, VectorIndex
 from decision_graph.core.matching import (
+    SimpleJaccardScorer,
     build_conversation_fingerprint,
     calculate_jaccard,
     calculate_max_subject_match,
     calculate_sequence_match,
     normalize_entity,
-    precompute_decision,
-    score_decision_pair,
 )
 from decision_graph.core.registry import StorageBackend
 
@@ -23,11 +22,13 @@ class DecisionContextRetriever:
         gids: List[str],
         backend: StorageBackend,
         vector_index: Optional[VectorIndex] = None,
+        scorer: Optional[MatchScorer] = None,
     ):
         self._gids = gids
         self._vector_index = vector_index
         self._enrichment_store = backend.enrichment_store()
         self._projection_store = backend.projection_store()
+        self._scorer = scorer or SimpleJaccardScorer()
 
     async def get_top_k_projections(
         self,
@@ -238,15 +239,15 @@ class DecisionContextRetriever:
         matching_candidates: List[Dict[str, Any]],
         score_threshold: float = 0.7,
     ) -> List[Dict[str, Any]]:
-        precomputed_new = precompute_decision(new_decision)
+        precomputed_new = self._scorer.precompute(new_decision)
         ranked_results = []
 
         for candidate in matching_candidates:
             if candidate.get("decision_id") == new_decision.get("decision_id"):
                 continue
 
-            precomputed_cand = precompute_decision(candidate)
-            scores = score_decision_pair(precomputed_new, precomputed_cand)
+            precomputed_cand = self._scorer.precompute(candidate)
+            scores = self._scorer.score_pair(precomputed_new, precomputed_cand)
 
             result = {
                 **candidate,

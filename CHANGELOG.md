@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refactored decision-pair matching into a pluggable `MatchScorer` protocol with a default `SimpleJaccardScorer` implementation, replacing the previous hard-coded scoring functions
+- Moved stop words from inline constant to external `core/stop_words.txt` file
+- Reorganized test directory structure under `tests/unit/` to mirror `src/` layout (`core/`, `llm/`, `backends/firestore/`, `context_graph/`)
+- Simplified Pydantic imports in `core/domain.py`
+
+### Added
+- `MatchScorer` protocol in `core/interfaces.py` for pluggable scoring strategies
+- `SimpleJaccardScorer` in `core/matching.py` — a lightweight scorer using Jaccard similarity on subject and topic tokens
+
 ## [0.1.0] - 2026-04-02
 
 ### Added

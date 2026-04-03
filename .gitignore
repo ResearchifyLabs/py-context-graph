@@ -17,3 +17,5 @@ env/
 .ruff_cache/
 generated/
 .DS_Store
+.vscode/
+
