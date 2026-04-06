@@ -10,7 +10,7 @@ Supports two input modes:
   - .md files: chunked by ## headings, each section processed independently
 
 Usage:
-    python run.py [-h] [--port PORT] [--no-browser] [--model MODEL] [FILE ...]
+    python run.py [-h] [--port PORT] [--no-browser] [FILE ...]
 
 Runs the pipeline, serves results at http://localhost:<port>/viewer.html,
 and opens the browser automatically.
@@ -20,7 +20,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import re
 import threading
 import time
@@ -30,7 +29,6 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List
 
-from decision_graph import GraphConfig
 from decision_graph.backends.memory import InMemoryBackend
 from decision_graph.backends.memory.stores import InMemoryGraphStore, InMemoryVectorIndex
 from decision_graph.decision_trace_pipeline import DecisionTracePipeline
@@ -95,7 +93,7 @@ def _slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")[:60]
 
 
-async def run_demo(conv_files: List[Path], config: GraphConfig):
+async def run_demo(conv_files: List[Path]):
     if not conv_files:
         conv_files = sorted(DEMO_DIR.glob("sample_conversation_*.txt"))
     if not conv_files:
@@ -108,13 +106,12 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
     vector_index = InMemoryVectorIndex()
     graph_store = InMemoryGraphStore()
     llm_adapter = LiteLLMAdapter()
-    dg = DecisionGraph(backend=backend, executor=llm_adapter, config=config)
+    dg = DecisionGraph(backend=backend, executor=llm_adapter)
     pipeline = DecisionTracePipeline(
         backend=backend,
         executor=llm_adapter,
         vector_index=vector_index,
         graph_store=graph_store,
-        config=config,
     )
 
     gid = "demo_group"
@@ -183,11 +180,6 @@ def parse_args():
         "--no-browser", action="store_true",
         help="Don't auto-open the browser.",
     )
-    parser.add_argument(
-        "--model", type=str,
-        default=os.environ.get("DECISION_GRAPH_MODEL", "gpt-4.1-mini"),
-        help="LiteLLM model string (default: gpt-4.1-mini). E.g. anthropic/claude-3.5-sonnet",
-    )
     return parser.parse_args()
 
 
@@ -202,10 +194,8 @@ async def main():
     if not args.no_browser:
         webbrowser.open(url)
 
-    config = GraphConfig(model=args.model)
-    _logger.info("Using model: %s", config.model)
-
-    projections_result, hydrated_clusters, graph_arrays = await run_demo(args.files, config)
+    # Run pipeline (viewer shows live progress via status.json polling)
+    projections_result, hydrated_clusters, graph_arrays = await run_demo(args.files)
 
     # Write final output files
     out_dir = DEMO_DIR / "generated"

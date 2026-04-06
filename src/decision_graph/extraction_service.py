@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from decision_graph.core.config import GraphConfig, LLMConfig
+from decision_graph.core.config import LLMConfig
 from decision_graph.core.decision_trace_profiles import allowed_decision_types_for_industry
 from decision_graph.core.domain import DecisionUnitCoreExtractList
 from decision_graph.core.interfaces import LLMAdapter
@@ -13,9 +13,8 @@ _logger = logging.getLogger(__name__)
 class DecisionExtractionService:
     """Extracts structured decision items from conversation text via LLM."""
 
-    def __init__(self, *, executor: LLMAdapter, config: GraphConfig = None):
+    def __init__(self, *, executor: LLMAdapter):
         self._executor = executor
-        self._config = config or GraphConfig()
         self._prompt_loader = load_prompt
 
     async def extract(
@@ -38,7 +37,7 @@ class DecisionExtractionService:
         system_prompt += "\n\n*No prior decision_trace projections available. Please generate a new list.*"
 
         model_cfg = LLMConfig(
-            model_name=self._config.model,
+            model_name="gpt-4.1-mini",
             system_prompt=system_prompt,
             prompt="\n*Conversation (Messages):* \n{text}",
             temperature=0,

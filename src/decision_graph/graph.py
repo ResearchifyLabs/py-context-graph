@@ -1,6 +1,3 @@
-from typing import Optional
-
-from decision_graph.core.config import GraphConfig
 from decision_graph.core.interfaces import LLMAdapter, VectorIndex
 from decision_graph.core.registry import StorageBackend
 
@@ -21,10 +18,9 @@ class DecisionGraph:
         service = dg.graph_service()
     """
 
-    def __init__(self, *, backend: StorageBackend, executor: LLMAdapter, config: Optional[GraphConfig] = None):
+    def __init__(self, *, backend: StorageBackend, executor: LLMAdapter):
         self._backend = backend
         self._executor = executor
-        self._config = config or GraphConfig()
 
     @property
     def backend(self) -> StorageBackend:
@@ -52,4 +48,4 @@ class DecisionGraph:
     def cluster_service(self):
         from decision_graph.clustering_service import DecisionClusterService
 
-        return DecisionClusterService(backend=self._backend, executor=self._executor, config=self._config)
+        return DecisionClusterService(backend=self._backend, executor=self._executor)
