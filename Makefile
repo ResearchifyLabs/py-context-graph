@@ -27,7 +27,7 @@ test-verbose: ## Run tests with verbose output
 	PYTHONPATH=src:tests $(PYTHON) -m unittest discover -s tests -p 'test_*.py' -v
 
 test-cov: ## Run tests with coverage report (HTML in htmlcov/)
-	PYTHONPATH=src:tests $(VENV)/bin/coverage run -m unittest discover -s tests -p 'test_*.py'
+	PYTHONPATH=src:tests $(VENV)/bin/coverage run --source=src/decision_graph -m unittest discover -s tests -p 'test_*.py'
 	$(VENV)/bin/coverage report --show-missing
 	$(VENV)/bin/coverage html
 
