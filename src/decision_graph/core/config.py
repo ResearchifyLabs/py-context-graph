@@ -5,6 +5,16 @@ import pydantic
 
 from decision_graph.core.domain import ClusterMetadataExtract
 
+DEFAULT_MODEL = "gpt-4.1-mini"
+
+
+@dataclass
+class GraphConfig:
+    """Library-level configuration. Model uses LiteLLM nomenclature
+    (e.g. "gpt-4.1-mini", "anthropic/claude-3.5-sonnet", "vertex_ai/gemini-2.0-flash")."""
+
+    model: str = DEFAULT_MODEL
+
 
 @dataclass
 class LLMConfig:
@@ -36,9 +46,13 @@ Focus on:
 - Any important constraints or parameters"""
 
 
-cluster_metadata_cfg = LLMConfig(
-    model_name="gpt-4.1-mini",
-    prompt=cluster_metadata_prompt,
-    data_model=ClusterMetadataExtract,
-    temperature=0.2,
-)
+def build_cluster_metadata_cfg(model: str = DEFAULT_MODEL) -> LLMConfig:
+    return LLMConfig(
+        model_name=model,
+        prompt=cluster_metadata_prompt,
+        data_model=ClusterMetadataExtract,
+        temperature=0.2,
+    )
+
+
+cluster_metadata_cfg = build_cluster_metadata_cfg()
