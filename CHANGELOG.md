@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Makefile with targets for venv setup, install, test, coverage, build, clean, and publish
+- Development section in README with Makefile usage and coverage instructions
+- `pytest-cov` and `build` as dev dependencies
+
 ## [0.1.0] - 2026-04-02
 
 ### Added
