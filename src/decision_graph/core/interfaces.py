@@ -147,6 +147,20 @@ class LLMAdapter(Protocol):
 
 
 @runtime_checkable
+class MatchScorer(Protocol):
+    """Pluggable scoring strategy for decision-pair matching.
+
+    ``precompute`` may enrich a decision dict with cached tokens/embeddings.
+    ``score_pair`` returns a dict that **must** contain a ``combined_score``
+    float; any extra keys are persisted as match metadata.
+    """
+
+    def precompute(self, decision: Dict[str, Any]) -> Dict[str, Any]: ...
+
+    def score_pair(self, a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, float]: ...
+
+
+@runtime_checkable
 class GraphReader(Protocol):
     """Read-only interface for querying the graph database (e.g. Neo4j)."""
 

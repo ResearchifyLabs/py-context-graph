@@ -3,10 +3,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from decision_graph.core.config import cluster_metadata_cfg
+from decision_graph.core.config import GraphConfig, build_cluster_metadata_cfg
 from decision_graph.core.domain import ClusterMetadataExtract, DecisionCluster, DecisionLink
-from decision_graph.core.interfaces import LLMAdapter
-from decision_graph.core.matching import precompute_decision, score_decision_pair
+from decision_graph.core.interfaces import LLMAdapter, MatchScorer
+from decision_graph.core.matching import SimpleJaccardScorer
 from decision_graph.core.registry import StorageBackend
 
 _logger = logging.getLogger(__name__)
@@ -20,10 +20,19 @@ class DecisionClusterService:
         *,
         backend: StorageBackend,
         executor: LLMAdapter,
+        scorer: MatchScorer = None,
+        match_threshold: float = 0.40,
+        early_exit_score: float = EARLY_EXIT_SCORE,
+        config: GraphConfig = None,
     ):
         self._cluster_store = backend.cluster_store()
         self._link_store = backend.link_store()
         self._executor = executor
+        self._scorer = scorer or SimpleJaccardScorer()
+        self._match_threshold = match_threshold
+        self._early_exit_score = early_exit_score
+        self._config = config or GraphConfig()
+        self._cluster_metadata_cfg = build_cluster_metadata_cfg(self._config.model)
 
     async def _generate_cluster_metadata(
         self,
@@ -37,7 +46,7 @@ Topics: {', '.join(topics[:15])}
 Key Entities: {', '.join(entities[:10])}"""
 
         result = await self._executor.execute_async(
-            cluster_metadata_cfg,
+            self._cluster_metadata_cfg,
             data=decision_info,
         )
         if not result:
@@ -52,15 +61,16 @@ Key Entities: {', '.join(entities[:10])}"""
         *,
         new_decisions: List[Dict[str, Any]],
         candidate_decisions: List[Dict[str, Any]],
-        match_threshold: float = 0.40,
+        match_threshold: float = None,
     ) -> Dict[str, Any]:
         if not new_decisions:
             _logger.warning("link_decisions.no_new_decisions")
             return {"linked": 0, "skipped": 0, "new_clusters": 0}
 
+        threshold = match_threshold if match_threshold is not None else self._match_threshold
         now_ts = datetime.now(timezone.utc).timestamp()
 
-        precomputed_cands = [precompute_decision(d) for d in candidate_decisions]
+        precomputed_cands = [self._scorer.precompute(d) for d in candidate_decisions]
 
         linked_count = 0
         skipped_count = 0
@@ -76,7 +86,7 @@ Key Entities: {', '.join(entities[:10])}"""
                 skipped_count += 1
                 continue
 
-            precomputed_new = precompute_decision(decision)
+            precomputed_new = self._scorer.precompute(decision)
 
             best_score = 0.0
             best_cand_idx = -1
@@ -86,17 +96,17 @@ Key Entities: {', '.join(entities[:10])}"""
             for j, cand_d in enumerate(precomputed_cands):
                 if cand_d.get("decision_id") == did:
                     continue
-                scores = score_decision_pair(precomputed_new, cand_d)
-                if scores["combined_score"] >= match_threshold:
+                scores = self._scorer.score_pair(precomputed_new, cand_d)
+                if scores["combined_score"] >= threshold:
                     above_threshold_cands.append((scores["combined_score"], j, scores))
                 if scores["combined_score"] > best_score:
                     best_score = scores["combined_score"]
                     best_cand_idx = j
                     best_scores = scores
-                    if best_score >= EARLY_EXIT_SCORE:
+                    if best_score >= self._early_exit_score:
                         break
 
-            if best_score >= match_threshold and best_cand_idx >= 0:
+            if best_score >= threshold and best_cand_idx >= 0:
                 cand_did = candidate_decisions[best_cand_idx]["decision_id"]
                 cluster_id = self._link_store.find_cluster_id_for_decision(cand_did)
 

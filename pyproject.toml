@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "py-context-graph"
-version = "0.1.0"
+version = "0.1.1"
 description = "Extract, enrich, cluster, and query decisions from unstructured conversations using LLMs."
 readme = "README.md"
 license = "MIT"
@@ -32,7 +32,7 @@ dependencies = [
 llm = ["litellm"]
 firestore = ["google-cloud-firestore"]
 memory = ["pandas"]
-all = ["litellm", "google-cloud-firestore", "pandas"]
+all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp"]
 dev = [
     "py-context-graph[all]",
     "mock-firestore",

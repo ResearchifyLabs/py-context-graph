@@ -1,32 +1,15 @@
 import hashlib
 import re
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
-TOPIC_WEIGHT = 0.30
-NON_PERSON_ENTITY_WEIGHT = 0.15
-PERSON_ENTITY_WEIGHT = 0.05
-SUBJECT_WEIGHT = 0.35
-SPECIFICS_WEIGHT = 0.15
-
-SPECIFICS_MISMATCH_PENALTY = 0.85
-ENTITY_MISMATCH_PENALTY = 0.85
-
 _SPECIFICS_TOKEN_RE = re.compile(r"[a-z0-9]+(?:\.[a-z0-9]+)*")
-_SPECIFICS_STOP_WORDS = frozenset({
-    "an", "as", "at", "be", "by", "do", "if", "in", "is", "it",
-    "me", "my", "no", "of", "on", "or", "so", "to", "up", "us", "we",
-    "the", "and", "for", "that", "this", "with", "from", "are", "was",
-    "were", "been", "have", "has", "had", "will", "would", "could",
-    "should", "may", "might", "can", "not", "but", "also", "just",
-    "than", "then", "only", "very", "its", "his", "her", "they",
-    "them", "their", "our", "your", "into", "about", "after", "before",
-    "being", "both", "each", "how", "more", "other", "some", "such",
-    "who", "whom", "which", "what", "when", "where", "while",
-    "all", "any", "did", "does", "doing", "done", "via", "per",
-    "confirmed", "shared", "requested", "noted", "announced",
-    "approved", "submitted", "reported", "mentioned", "discussed",
-})
+
+_STOP_WORDS_PATH = Path(__file__).parent / "stop_words.txt"
+_SPECIFICS_STOP_WORDS = frozenset(
+    word for word in _STOP_WORDS_PATH.read_text().splitlines() if word.strip()
+)
 
 
 def dedupe_list(items: Optional[list]) -> list:
@@ -282,36 +265,6 @@ def tokenize_specifics(raw_values: List[str]) -> Set[str]:
     return tokens
 
 
-def precompute_decision(decision: Dict[str, Any]) -> Dict[str, Any]:
-    topics = decision.get("topics") or []
-    person_ents = decision.get("person_entities") or []
-    non_person_ents = decision.get("non_person_entities") or []
-    key_facts = decision.get("key_facts") or []
-    action_params = decision.get("action_params") or {}
-
-    specifics_raw = list(key_facts)
-    for k, v in action_params.items():
-        if isinstance(v, str) and k not in ("action", "action_type", "action_desc"):
-            specifics_raw.append(v)
-
-    specifics_tokens = tokenize_specifics(specifics_raw)
-    already_scored = (
-        tokenize_specifics(topics)
-        | tokenize_specifics(person_ents)
-        | tokenize_specifics(non_person_ents)
-    )
-    specifics_tokens -= already_scored
-
-    return {
-        **decision,
-        "_topics_set": tokenize_specifics(topics),
-        "_person_set": set(normalize_entity(e) for e in person_ents if e),
-        "_non_person_set": set(normalize_entity(e) for e in non_person_ents if e),
-        "_subject_lower": (decision.get("subject_label") or "").lower().strip(),
-        "_specifics_set": specifics_tokens,
-    }
-
-
 def jaccard(set_a: Set[str], set_b: Set[str]) -> float:
     if not set_a and not set_b:
         return 0.0
@@ -325,59 +278,35 @@ def jaccard(set_a: Set[str], set_b: Set[str]) -> float:
 idf_weighted_jaccard = jaccard
 
 
-def score_decision_pair(
-    a: Dict[str, Any],
-    b: Dict[str, Any],
-) -> Dict[str, float]:
-    a_topics = a.get("_topics_set") or set()
-    b_topics = b.get("_topics_set") or set()
-    topic_score = jaccard(a_topics, b_topics)
+class SimpleJaccardScorer:
+    """Lightweight scorer that uses only subject_label and topics.
 
-    a_np = a.get("_non_person_set") or set()
-    b_np = b.get("_non_person_set") or set()
-    non_person_score = jaccard(a_np, b_np)
+    Both dimensions are tokenized and compared via Jaccard similarity.
+    The combined_score is the average of the two Jaccard scores.
+    """
 
-    a_p = a.get("_person_set") or set()
-    b_p = b.get("_person_set") or set()
-    person_score = jaccard(a_p, b_p)
+    def precompute(self, decision: Dict[str, Any]) -> Dict[str, Any]:
+        subject = (decision.get("subject_label") or "").lower().strip()
+        subject_tokens = set(_SPECIFICS_TOKEN_RE.findall(subject)) - _SPECIFICS_STOP_WORDS
+        topic_tokens = tokenize_specifics(decision.get("topics") or [])
+        return {
+            **decision,
+            "_subject_tokens": subject_tokens,
+            "_topics_set": topic_tokens,
+        }
 
-    subject_score = calculate_sequence_match(
-        a.get("_subject_lower") or a.get("subject_label", ""),
-        b.get("_subject_lower") or b.get("subject_label", ""),
-    )
-
-    a_spec = a.get("_specifics_set") or set()
-    b_spec = b.get("_specifics_set") or set()
-    specifics_score = jaccard(a_spec, b_spec)
-
-    combined = (
-        topic_score * TOPIC_WEIGHT
-        + non_person_score * NON_PERSON_ENTITY_WEIGHT
-        + person_score * PERSON_ENTITY_WEIGHT
-        + subject_score * SUBJECT_WEIGHT
-        + specifics_score * SPECIFICS_WEIGHT
-    )
-
-    specifics_penalty = 1.0
-    entity_penalty = 1.0
-    person_penalty = 1.0
-    if a_spec and b_spec and specifics_score < 0.10:
-        specifics_penalty = SPECIFICS_MISMATCH_PENALTY
-    if a_np and b_np and non_person_score < 0.10:
-        entity_penalty = ENTITY_MISMATCH_PENALTY
-    if a_p and b_p and person_score < 0.10:
-        person_penalty = ENTITY_MISMATCH_PENALTY
-    combined *= specifics_penalty * entity_penalty * person_penalty
-
-    return {
-        "subject_score": round(subject_score, 4),
-        "topic_score": round(topic_score, 4),
-        "non_person_entity_score": round(non_person_score, 4),
-        "person_entity_score": round(person_score, 4),
-        "entity_score": round(non_person_score * 0.83 + person_score * 0.17, 4),
-        "specifics_score": round(specifics_score, 4),
-        "specifics_penalty": round(specifics_penalty, 2),
-        "entity_penalty": round(entity_penalty, 2),
-        "person_penalty": round(person_penalty, 2),
-        "combined_score": round(combined, 4),
-    }
+    def score_pair(self, a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, float]:
+        subject_score = jaccard(
+            a.get("_subject_tokens") or set(),
+            b.get("_subject_tokens") or set(),
+        )
+        topic_score = jaccard(
+            a.get("_topics_set") or set(),
+            b.get("_topics_set") or set(),
+        )
+        combined = (subject_score + topic_score) / 2.0
+        return {
+            "subject_score": round(subject_score, 4),
+            "topic_score": round(topic_score, 4),
+            "combined_score": round(combined, 4),
+        }

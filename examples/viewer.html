@@ -368,7 +368,6 @@ const PIPELINE_STEPS = [
   { key: 'deduplicate', label: 'Deduplicate', desc: 'Removing duplicate decisions' },
   { key: 'enrich', label: 'Enrich', desc: 'Adding topics, entities & facts' },
   { key: 'cluster', label: 'Cluster', desc: 'Grouping related decisions' },
-  { key: 'graph', label: 'Graph', desc: 'Building visualization graph' },
 ];
 
 function showPipelineProgress(status) {
@@ -398,59 +397,58 @@ function hidePipelineProgress() {
   switchTab('insights');
 }
 
+async function fetchResults() {
+  const [outRes, grRes] = await Promise.all([
+    fetch('/api/output'), fetch('/api/graph-data')
+  ]);
+  if (outRes.ok && grRes.ok) {
+    outputData = await outRes.json();
+    graphData = await grRes.json();
+    hidePipelineProgress();
+    init();
+  }
+}
+
 async function loadData() {
-  /* Try to load finished data first (pre-generated case) */
   try {
-    const [outRes, grRes] = await Promise.all([
-      fetch('generated/output.json'),
-      fetch('generated/graph_data.json'),
-    ]);
-    if (outRes.ok && grRes.ok) {
-      outputData = await outRes.json();
-      graphData = await grRes.json();
-      init();
+    const res = await fetch('/api/status');
+    if (!res.ok) {
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = 'No data found. Run: python run.py';
       return;
     }
-  } catch (_) { /* fall through to polling */ }
-
-  /* Check if pipeline is running (status.json exists) */
-  try {
-    const statusRes = await fetch('generated/status.json');
-    if (statusRes.ok) {
+    const status = await res.json();
+    if (status.step === 'done') {
+      await fetchResults();
+    } else if (status.step && status.step !== 'idle') {
+      showPipelineProgress(status);
       pollPipeline();
-      return;
+    } else {
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').textContent = 'No data found. Run: python run.py';
     }
-  } catch (_) { /* fall through */ }
-
-  document.getElementById('error').style.display = 'block';
-  document.getElementById('error').textContent = 'No data found. Run: python run.py';
+  } catch (_) {
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('error').textContent = 'No data found. Run: python run.py';
+  }
 }
 
 async function pollPipeline() {
   const poll = async () => {
     try {
-      const statusRes = await fetch('generated/status.json?t=' + Date.now());
+      const statusRes = await fetch('/api/status?t=' + Date.now());
       if (statusRes.ok) {
         const status = await statusRes.json();
         showPipelineProgress(status);
         if (status.step === 'done') {
-          const [outRes, grRes] = await Promise.all([
-            fetch('generated/output.json?t=' + Date.now()),
-            fetch('generated/graph_data.json?t=' + Date.now()),
-          ]);
-          if (outRes.ok && grRes.ok) {
-            outputData = await outRes.json();
-            graphData = await grRes.json();
-            hidePipelineProgress();
-            init();
-            return;
-          }
+          await fetchResults();
+          return;
         }
       }
     } catch (_) { /* keep polling */ }
     setTimeout(poll, 800);
   };
-  poll();
+  setTimeout(poll, 800);
 }
 
 /* ================================================================

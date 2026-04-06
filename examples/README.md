@@ -14,11 +14,12 @@ Standalone demo that processes sample conversations through the full decision gr
 
 - Python 3.10+
 - `pip install py-context-graph[all]` (or install from repo root: `pip install -e ".[all]"`)
-- An OpenAI-compatible LLM service (set `OPENAI_API_KEY` or configure LiteLLM)
+- An LLM API key for your chosen provider (defaults to OpenAI)
 
 ## Run
 
 ```bash
+export OPENAI_API_KEY=sk-...
 cd examples
 python run.py
 ```
@@ -29,18 +30,31 @@ Or with custom files:
 python run.py path/to/conversation1.txt path/to/conversation2.txt
 ```
 
-This processes all `sample_conversation_*.txt` files sequentially and writes into `generated/`:
-- `generated/output.json` -- projections + enrichments joined
-- `generated/graph_data.json` -- nodes and edges for graph visualization
+## Using a different model
+
+The demo defaults to `gpt-4.1-mini` (OpenAI). You can switch to any LiteLLM-supported provider via the `--model` flag or the `DECISION_GRAPH_MODEL` environment variable:
+
+```bash
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+python run.py --model anthropic/claude-3.5-sonnet
+
+# Google Vertex AI
+export GEMINI_API_KEY=...
+python run.py --model gemini/gemini-2.0-flash
+
+# Or set the model via environment variable
+export DECISION_GRAPH_MODEL=anthropic/claude-3.5-sonnet
+python run.py
+```
+
+The model string follows [LiteLLM's naming convention](https://docs.litellm.ai/docs/providers) (`provider/model_name`). OpenAI models can omit the prefix.
+
+This processes all `sample_conversation_*.txt` files sequentially, stores results in the configured backends (in-memory by default), and serves them via API endpoints that `viewer.html` fetches from.
 
 ## View
 
-```bash
-cd examples
-python -m http.server 8888
-```
-
-Open http://localhost:8888/viewer.html
+The viewer opens automatically at http://localhost:8888/viewer.html when you run `python run.py`. It fetches data from the backend via `/api/output` and `/api/graph-data` endpoints, and polls `/api/status` for live pipeline progress.
 
 ### Decisions tab
 Card view of all extracted decisions showing subject, type, status, initiator, topics, entities, key facts, and constraints.

@@ -209,3 +209,4 @@ __marimo__/
 # Examples
 examples/generated/
 .DS_Store
+.vscode/

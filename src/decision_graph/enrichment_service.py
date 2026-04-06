@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List
 
-from decision_graph.core.config import LLMConfig
+from decision_graph.core.config import GraphConfig, LLMConfig
 from decision_graph.core.domain import (
     DecisionEnrichmentCoreExtract,
     DecisionEnrichmentRow,
@@ -24,9 +24,10 @@ _logger = logging.getLogger(__name__)
 
 
 class DecisionEnrichmentService:
-    def __init__(self, *, backend: StorageBackend, executor: LLMAdapter):
+    def __init__(self, *, backend: StorageBackend, executor: LLMAdapter, config: GraphConfig = None):
         self._enrichment_store = backend.enrichment_store()
         self._executor = executor
+        self._config = config or GraphConfig()
         self._prompt_loader = load_prompt
 
     @staticmethod
@@ -160,7 +161,7 @@ class DecisionEnrichmentService:
     ) -> DecisionEnrichmentRow:
         prompt = self._prompt_loader("decision_enrichment")
         model_cfg = LLMConfig(
-            model_name="gpt-4.1-mini",
+            model_name=self._config.model,
             prompt=prompt,
             temperature=0.0,
             data_model=DecisionEnrichmentCoreExtract,

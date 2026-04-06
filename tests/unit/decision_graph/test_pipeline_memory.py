@@ -11,7 +11,7 @@ import pandas as pd
 
 from decision_graph.backends.memory import InMemoryBackend
 from decision_graph.backends.memory.stores import InMemoryGraphStore
-from decision_graph.core.domain import KV, DecisionEnrichmentCoreExtract, Entity
+from decision_graph.core.domain import KV, ClusterMetadataExtract, DecisionEnrichmentCoreExtract, Entity
 from decision_graph.decision_trace_pipeline import DecisionTracePipeline
 from decision_graph.retrieval import DecisionEnrichmentRetrieval
 
@@ -21,6 +21,12 @@ _STUB_ENRICHMENT = DecisionEnrichmentCoreExtract(
     action_params=[KV(k="priority", v="high")],
     constraints_text=["must complete by EOD"],
     key_facts=[KV(k="budget", v="10k")],
+)
+
+_STUB_CLUSTER_METADATA = ClusterMetadataExtract(
+    debug={"reasoning": "test"},
+    primary_subject="Test Subject",
+    rolling_summary="Test Summary",
 )
 
 
@@ -54,6 +60,8 @@ def _make_decision_item(
 
 class StubLLMAdapter:
     async def execute_async(self, model_config, data, additional_data=None):
+        if model_config.data_model is ClusterMetadataExtract:
+            return _STUB_CLUSTER_METADATA
         return _STUB_ENRICHMENT
 
 

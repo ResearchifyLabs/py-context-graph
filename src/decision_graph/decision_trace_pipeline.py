@@ -5,8 +5,9 @@ from typing import Callable, Dict, List, Optional
 
 from decision_graph.clustering_service import DecisionClusterService
 from decision_graph.context_retrieval import DecisionContextRetriever
+from decision_graph.core.config import GraphConfig
 from decision_graph.core.domain import DecisionUnitRow
-from decision_graph.core.interfaces import GraphStore, LLMAdapter, VectorIndex
+from decision_graph.core.interfaces import GraphStore, LLMAdapter, MatchScorer, VectorIndex
 from decision_graph.core.matching import merge_decision_trace_history
 from decision_graph.core.registry import StorageBackend
 from decision_graph.enrichment_service import DecisionEnrichmentService
@@ -29,13 +30,17 @@ class DecisionTracePipeline:
         executor: LLMAdapter,
         vector_index: Optional[VectorIndex] = None,
         graph_store: GraphStore,
+        scorer: Optional[MatchScorer] = None,
+        config: Optional[GraphConfig] = None,
     ):
         self._backend = backend
         self._executor = executor
-        self._enrichment_service = DecisionEnrichmentService(backend=backend, executor=executor)
-        self._extraction_service = DecisionExtractionService(executor=executor)
+        self._config = config or GraphConfig()
+        self._enrichment_service = DecisionEnrichmentService(backend=backend, executor=executor, config=self._config)
+        self._extraction_service = DecisionExtractionService(executor=executor, config=self._config)
         self._vector_index = vector_index
         self._graph_store = graph_store
+        self._scorer = scorer
 
     async def run_from_text(
         self,
@@ -253,14 +258,14 @@ class DecisionTracePipeline:
 
     async def _run_clustering(self, *, summary_text: str, cid: str, gids: List[str]) -> None:
         try:
-            retriever = DecisionContextRetriever(gids=gids, backend=self._backend, vector_index=self._vector_index)
+            retriever = DecisionContextRetriever(gids=gids, backend=self._backend, vector_index=self._vector_index, scorer=self._scorer)
             new_decisions, candidate_decisions = await retriever.run_clustering_analysis(
                 summary_text=summary_text,
                 cid=cid,
             )
             if not new_decisions:
                 return
-            cluster_service = DecisionClusterService(backend=self._backend, executor=self._executor)
+            cluster_service = DecisionClusterService(backend=self._backend, executor=self._executor, scorer=self._scorer, config=self._config)
             retval = await cluster_service.link_decisions_to_cluster(
                 new_decisions=new_decisions,
                 candidate_decisions=candidate_decisions,
