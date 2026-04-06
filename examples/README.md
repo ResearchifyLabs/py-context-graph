@@ -50,18 +50,11 @@ python run.py
 
 The model string follows [LiteLLM's naming convention](https://docs.litellm.ai/docs/providers) (`provider/model_name`). OpenAI models can omit the prefix.
 
-This processes all `sample_conversation_*.txt` files sequentially and writes into `generated/`:
-- `generated/output.json` -- projections + enrichments joined
-- `generated/graph_data.json` -- nodes and edges for graph visualization
+This processes all `sample_conversation_*.txt` files sequentially, stores results in the configured backends (in-memory by default), and serves them via API endpoints that `viewer.html` fetches from.
 
 ## View
 
-```bash
-cd examples
-python -m http.server 8888
-```
-
-Open http://localhost:8888/viewer.html
+The viewer opens automatically at http://localhost:8888/viewer.html when you run `python run.py`. It fetches data from the backend via `/api/output` and `/api/graph-data` endpoints, and polls `/api/status` for live pipeline progress.
 
 ### Decisions tab
 Card view of all extracted decisions showing subject, type, status, initiator, topics, entities, key facts, and constraints.

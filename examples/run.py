@@ -3,7 +3,7 @@ Decision Graph Demo
 
 Reads sample conversations or markdown documents, extracts decisions via LLM,
 runs them through the full decision_graph pipeline (extract -> persist -> dedupe
--> enrich -> cluster), and writes output.json + graph_data.json for the HTML viewer.
+-> enrich -> cluster), and serves results via API for the HTML viewer.
 
 Supports two input modes:
   - .txt files: each file is one conversation
@@ -22,13 +22,12 @@ import json
 import logging
 import os
 import re
-import threading
 import time
 import webbrowser
-from functools import partial
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from typing import List
+
+from aiohttp import web
 
 from decision_graph import GraphConfig
 from decision_graph.backends.memory import InMemoryBackend
@@ -44,23 +43,48 @@ _logger = logging.getLogger(__name__)
 
 DEMO_DIR = Path(__file__).parent
 
+_state = {
+    "status": {"step": "idle"},
+    "backend": None,
+    "graph_store": None,
+    "dg": None,
+    "gid": "demo_group",
+}
+
 
 def _write_status(step: str, conversation: str = "", conversation_progress: str = ""):
-    """Write a status.json file so the viewer can show live pipeline progress."""
-    out_dir = DEMO_DIR / "generated"
-    out_dir.mkdir(exist_ok=True)
-    status = {"step": step, "conversation": conversation, "conversation_progress": conversation_progress}
-    (out_dir / "status.json").write_text(json.dumps(status), encoding="utf-8")
+    _state["status"] = {"step": step, "conversation": conversation, "conversation_progress": conversation_progress}
 
 
-def _clear_previous_output():
-    """Remove previous output files so the viewer knows to poll for progress."""
-    out_dir = DEMO_DIR / "generated"
-    for f in ["output.json", "graph_data.json"]:
-        p = out_dir / f
-        if p.exists():
-            p.unlink()
+# ---------------------------------------------------------------------------
+# API handlers
+# ---------------------------------------------------------------------------
 
+async def handle_status(request):
+    return web.json_response(_state["status"])
+
+
+async def handle_output(request):
+    if _state["status"]["step"] != "done":
+        return web.json_response(
+            {"projections": [], "total_projections": 0, "total_joined": 0, "total_enrichments": 0, "has_more": False}
+        )
+    service = _state["dg"].graph_service()
+    result = await service.get_enrichments_and_projections_joined(group_ids=[_state["gid"]])
+    return web.json_response(result, dumps=lambda x: json.dumps(x, default=str))
+
+
+async def handle_graph_data(request):
+    if _state["status"]["step"] != "done":
+        return web.json_response({"nodes": [], "edges": []})
+    gs = _state["graph_store"]
+    graph_data = build_vis_graph(gs.graph_arrays, gs.hydrated_clusters)
+    return web.json_response(graph_data, dumps=lambda x: json.dumps(x, default=str))
+
+
+# ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
 
 async def _process_text(pipeline, backend, vector_index, *, conv_text, cid, gid, conv_label, conv_progress):
     summary_pid = f"summary_{cid}"
@@ -101,7 +125,6 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
     if not conv_files:
         conv_files = [DEMO_DIR / "sample_conversation.txt"]
 
-    _clear_previous_output()
     _write_status("extract", "Initializing...")
 
     backend = InMemoryBackend()
@@ -117,7 +140,11 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
         config=config,
     )
 
-    gid = "demo_group"
+    _state["backend"] = backend
+    _state["graph_store"] = graph_store
+    _state["dg"] = dg
+
+    gid = _state["gid"]
     total_files = len(conv_files)
 
     for file_idx, conv_file in enumerate(conv_files, 1):
@@ -145,24 +172,6 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
                 conv_text=raw_text, cid=cid, gid=gid,
                 conv_label=conv_label, conv_progress=conv_progress,
             )
-
-    _write_status("graph", "Building visualization...")
-    service = dg.graph_service()
-    projections_result = await service.get_enrichments_and_projections_joined(group_ids=[gid])
-
-    hydrated_clusters = graph_store.hydrated_clusters
-    graph_arrays = graph_store.graph_arrays
-
-    return projections_result, hydrated_clusters, graph_arrays
-
-
-def _start_server(port: int) -> HTTPServer:
-    """Start HTTP server in a background thread, serving from the examples directory."""
-    handler = partial(SimpleHTTPRequestHandler, directory=str(DEMO_DIR))
-    server = HTTPServer(("", port), handler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    return server
 
 
 def parse_args():
@@ -193,52 +202,41 @@ def parse_args():
 
 async def main():
     args = parse_args()
+    config = GraphConfig(model=args.model)
+    _logger.info("Using model: %s", config.model)
 
-    # Start server and open browser before pipeline runs
-    server = _start_server(args.port)
+    app = web.Application()
+    app.router.add_get('/api/status', handle_status)
+    app.router.add_get('/api/output', handle_output)
+    app.router.add_get('/api/graph-data', handle_graph_data)
+    app.router.add_static('/', DEMO_DIR)
+
+    runner = web.AppRunner(app, access_log=None)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', args.port)
+    await site.start()
+
     url = f"http://localhost:{args.port}/viewer.html"
     _logger.info("Serving at %s", url)
 
     if not args.no_browser:
         webbrowser.open(url)
 
-    config = GraphConfig(model=args.model)
-    _logger.info("Using model: %s", config.model)
-
-    projections_result, hydrated_clusters, graph_arrays = await run_demo(args.files, config)
-
-    # Write final output files
-    out_dir = DEMO_DIR / "generated"
-    out_dir.mkdir(exist_ok=True)
-
-    output_file = out_dir / "output.json"
-    output_file.write_text(json.dumps(projections_result, indent=2, default=str), encoding="utf-8")
-
-    graph_data = build_vis_graph(graph_arrays, hydrated_clusters)
-    graph_file = out_dir / "graph_data.json"
-    graph_file.write_text(json.dumps(graph_data, indent=2, default=str), encoding="utf-8")
-
-    # Signal completion
-    _write_status("done")
-
-    _logger.info(
-        "Done. %d projections, %d enriched, %d clusters, graph: %d nodes / %d edges.",
-        projections_result["total_projections"],
-        projections_result["total_joined"],
-        len(hydrated_clusters),
-        len(graph_data["nodes"]),
-        len(graph_data["edges"]),
-    )
-    _logger.info("Viewer: %s — press Ctrl+C to stop", url)
-
-    # Keep server running until interrupted
     try:
+        await run_demo(args.files, config)
+        _write_status("done")
+        _logger.info("Done. %d clusters. Viewer: %s — press Ctrl+C to stop", len(_state["graph_store"].hydrated_clusters), url)
+
         while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        _logger.info("Shutting down server.")
-        server.shutdown()
+            await asyncio.sleep(3600)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        await runner.cleanup()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        _logger.info("Shutting down server.")

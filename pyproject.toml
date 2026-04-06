@@ -32,12 +32,13 @@ dependencies = [
 llm = ["litellm"]
 firestore = ["google-cloud-firestore"]
 memory = ["pandas"]
-all = ["litellm", "google-cloud-firestore", "pandas"]
+all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp"]
 dev = [
     "litellm",
     "pandas",
     "google-cloud-firestore",
     "mock-firestore",
+    "aiohttp",
 ]
 
 [project.urls]
