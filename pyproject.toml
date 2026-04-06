@@ -36,8 +36,7 @@ all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp"]
 dev = [
     "py-context-graph[all]",
     "mock-firestore",
-    "pytest",
-    "pytest-cov",
+    "coverage",
     "build",
 ]
 

@@ -224,19 +224,10 @@ make                # show all targets
 make install-dev    # create venv + install with dev dependencies
 make test           # run tests
 make test-verbose   # run tests with verbose output
-make test-cov       # run tests with coverage report (terminal)
+make test-cov       # run tests with coverage (opens HTML report)
 make build          # build distribution packages
 make clean          # remove build artifacts and caches
 make clean-all      # remove build artifacts, caches, and venv
-```
-
-### Test coverage
-
-`make test-cov` prints a summary to the terminal. To generate a browsable HTML report:
-
-```bash
-.venv/bin/python -m pytest tests/ --cov=decision_graph --cov-report=html
-open htmlcov/index.html
 ```
 
 ## Contributing

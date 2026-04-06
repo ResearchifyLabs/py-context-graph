@@ -21,13 +21,15 @@ install-all: venv ## Install with all optional dependencies in venv
 	$(PIP) install -e ".[all]"
 
 test: ## Run tests
-	$(PYTHON) -m pytest tests/
+	PYTHONPATH=src:tests $(PYTHON) -m unittest discover -s tests -p 'test_*.py'
 
 test-verbose: ## Run tests with verbose output
-	$(PYTHON) -m pytest tests/ -v
+	PYTHONPATH=src:tests $(PYTHON) -m unittest discover -s tests -p 'test_*.py' -v
 
-test-cov: ## Run tests with coverage report
-	$(PYTHON) -m pytest tests/ --cov=decision_graph --cov-report=term-missing
+test-cov: ## Run tests with coverage report (HTML in htmlcov/)
+	PYTHONPATH=src:tests $(VENV)/bin/coverage run -m unittest discover -s tests -p 'test_*.py'
+	$(VENV)/bin/coverage report --show-missing
+	$(VENV)/bin/coverage html
 
 build: ## Build distribution packages
 	$(PYTHON) -m build
