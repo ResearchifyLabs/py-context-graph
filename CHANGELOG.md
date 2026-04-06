@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Makefile with targets for venv setup, install, test, build, and clean
+- Development section in README with Makefile usage
+- `build` as dev dependency
 - `GraphConfig` dataclass for library-level configuration, starting with LLM model selection
 - `--model` CLI flag and `DECISION_GRAPH_MODEL` env var support in `examples/run.py`
 - API endpoints in `examples/run.py` (`/api/status`, `/api/output`, `/api/graph-data`) — viewer now fetches data from backends via HTTP instead of static JSON files
