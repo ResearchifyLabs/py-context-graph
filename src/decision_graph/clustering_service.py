@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
-from decision_graph.core.config import cluster_metadata_cfg
+from decision_graph.core.config import GraphConfig, build_cluster_metadata_cfg
 from decision_graph.core.domain import ClusterMetadataExtract, DecisionCluster, DecisionLink
 from decision_graph.core.interfaces import LLMAdapter, MatchScorer
 from decision_graph.core.matching import SimpleJaccardScorer
@@ -23,6 +23,7 @@ class DecisionClusterService:
         scorer: MatchScorer = None,
         match_threshold: float = 0.40,
         early_exit_score: float = EARLY_EXIT_SCORE,
+        config: GraphConfig = None,
     ):
         self._cluster_store = backend.cluster_store()
         self._link_store = backend.link_store()
@@ -30,6 +31,8 @@ class DecisionClusterService:
         self._scorer = scorer or SimpleJaccardScorer()
         self._match_threshold = match_threshold
         self._early_exit_score = early_exit_score
+        self._config = config or GraphConfig()
+        self._cluster_metadata_cfg = build_cluster_metadata_cfg(self._config.model)
 
     async def _generate_cluster_metadata(
         self,
@@ -43,7 +46,7 @@ Topics: {', '.join(topics[:15])}
 Key Entities: {', '.join(entities[:10])}"""
 
         result = await self._executor.execute_async(
-            cluster_metadata_cfg,
+            self._cluster_metadata_cfg,
             data=decision_info,
         )
         if not result:
