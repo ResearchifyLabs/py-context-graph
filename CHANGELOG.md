@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-04-07
+
 ### Added
 - `"propose"` as a valid `ActionType` literal for actions like "Alice proposed switching to GraphQL"
 - `_coerce_action_type` field validator on `DecisionUnitCoreExtractAction` and `DecisionUnitRow` — unrecognized LLM values now fall back to `"other"` instead of raising a validation error
