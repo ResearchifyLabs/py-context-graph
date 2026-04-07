@@ -41,12 +41,15 @@ ActionType = Literal[
     "review",
     "fix",
     "discuss",
+    "propose",
     "announce_change",
     "share_link",
     "provide_report",
     "status_update",
     "other",
 ]
+
+_ACTION_TYPE_VALUES = set(ActionType.__args__)
 
 StatusState = Literal["proposed", "in_progress", "blocked", "done", "unknown"]
 
@@ -119,6 +122,11 @@ class DecisionUnitRow(BaseModel):
     evidence_span: str
     confidence: float = Field(ge=0.0, le=1.0)
 
+    @field_validator("action_type", mode="before")
+    @classmethod
+    def _coerce_action_type(cls, v):
+        return v if v in _ACTION_TYPE_VALUES else "other"
+
     @field_validator("counterparty_names", mode="before")
     @classmethod
     def _coerce_counterparties(cls, v):
@@ -147,6 +155,11 @@ class DecisionUnitCoreExtractSubject(BaseModel):
 class DecisionUnitCoreExtractAction(BaseModel):
     type: ActionType
     description: str
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _coerce_action_type(cls, v):
+        return v if v in _ACTION_TYPE_VALUES else "other"
 
 
 class DecisionUnitCoreExtractStatus(BaseModel):

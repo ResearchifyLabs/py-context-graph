@@ -5,6 +5,7 @@ from decision_graph.core.domain import (
     DecisionEnrichmentRow,
     DecisionJoinRow,
     DecisionLineageRow,
+    DecisionUnitCoreExtractAction,
     DecisionUnitCoreExtractList,
     DecisionUnitRow,
     DecisionUnitRowList,
@@ -376,6 +377,68 @@ class TestDecisionModels(unittest.TestCase):
             }
         )
         self.assertEqual(row.join_type, "same_intent")
+
+    def test_action_type_propose_accepted(self):
+        action = DecisionUnitCoreExtractAction.model_validate(
+            {"type": "propose", "description": "Carol proposed adding 3 replicas"}
+        )
+        self.assertEqual(action.type, "propose")
+
+    def test_action_type_unknown_falls_back_to_other(self):
+        action = DecisionUnitCoreExtractAction.model_validate(
+            {"type": "proposed", "description": "LLM confused status with action type"}
+        )
+        self.assertEqual(action.type, "other")
+
+        action2 = DecisionUnitCoreExtractAction.model_validate(
+            {"type": "totally_made_up", "description": "Unrecognized value"}
+        )
+        self.assertEqual(action2.type, "other")
+
+    def test_decision_unit_row_action_type_coercion(self):
+        base = {
+            "decision_id": "d1",
+            "pid": "p1",
+            "gid": "g1",
+            "cid": "c1",
+            "updated_at": 1768220580,
+            "recorded_at": 1768220581,
+            "decision_type": "purchase",
+            "initiator_name": "Alex",
+            "initiator_role": "internal",
+            "counterparty_names": [],
+            "subject_label": "Test",
+            "action_desc": "desc",
+            "evidence_span": "span",
+            "confidence": 0.8,
+        }
+        unit = DecisionUnitRow.model_validate({**base, "action_type": "propose"})
+        self.assertEqual(unit.action_type, "propose")
+
+        unit2 = DecisionUnitRow.model_validate({**base, "action_type": "proposed"})
+        self.assertEqual(unit2.action_type, "other")
+
+    def test_core_extract_list_action_type_coercion(self):
+        extracted = DecisionUnitCoreExtractList.model_validate(
+            {
+                "items": [
+                    {
+                        "decision_type": "Scaling",
+                        "actors": {
+                            "initiator_name": "Carol",
+                            "initiator_role": "internal",
+                            "counterparty_names": [],
+                        },
+                        "subject": {"label": "Add 3 replicas"},
+                        "action": {"type": "proposed", "description": "Carol proposed adding 3 replicas"},
+                        "status": {"state": "proposed", "blocker": None},
+                        "evidence": {"span": "Carol said we should add replicas", "confidence": 0.9},
+                    }
+                ]
+            }
+        )
+        self.assertEqual(extracted.items[0].action.type, "other")
+        self.assertEqual(extracted.items[0].status.state, "proposed")
 
     def test_decision_lineage_row_parses(self):
         row = DecisionLineageRow.model_validate(

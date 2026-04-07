@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `"propose"` as a valid `ActionType` literal for actions like "Alice proposed switching to GraphQL"
+- `_coerce_action_type` field validator on `DecisionUnitCoreExtractAction` and `DecisionUnitRow` — unrecognized LLM values now fall back to `"other"` instead of raising a validation error
+- Tests for action type coercion: accepted values, unknown value fallback, and end-to-end extraction list validation
 - Makefile with targets for venv setup, install, test, build, and clean
 - Development section in README with Makefile usage
 - `build` as dev dependency
