@@ -34,11 +34,10 @@ firestore = ["google-cloud-firestore"]
 memory = ["pandas"]
 all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp"]
 dev = [
-    "litellm",
-    "pandas",
-    "google-cloud-firestore",
+    "py-context-graph[all]",
     "mock-firestore",
-    "aiohttp",
+    "coverage",
+    "build",
 ]
 
 [project.urls]

@@ -241,6 +241,21 @@ src/decision_graph/
 └── prompts/                     # LLM prompt templates
 ```
 
+## Development
+
+A `Makefile` is included for common tasks. Run `make` to see all available targets:
+
+```bash
+make                # show all targets
+make install-dev    # create venv + install with dev dependencies
+make test           # run tests
+make test-verbose   # run tests with verbose output
+make test-cov       # run tests with coverage (opens HTML report)
+make build          # build distribution packages
+make clean          # remove build artifacts and caches
+make clean-all      # remove build artifacts, caches, and venv
+```
+
 ## Contributing
 
 Contributions are welcome. Please open an issue first to discuss what you'd like to change.
@@ -248,9 +263,8 @@ Contributions are welcome. Please open an issue first to discuss what you'd like
 ```bash
 git clone https://github.com/ResearchifyLabs/py-context-graph.git
 cd py-context-graph
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-PYTHONPATH=src:tests python -m unittest discover -s tests -p 'test_*.py'
+make install-dev
+make test
 ```
 
 ## License
