@@ -7,6 +7,53 @@ Extract, enrich, cluster, and query decisions from unstructured conversations us
 [![Python](https://img.shields.io/pypi/pyversions/py-context-graph)](https://pypi.org/project/py-context-graph/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+## Quick Start
+
+```bash
+pip install py-context-graph[all]
+```
+
+```python
+import asyncio
+from decision_graph import LiteLLMAdapter
+from decision_graph.backends.memory import InMemoryBackend
+from decision_graph.backends.memory.stores import InMemoryGraphStore, InMemoryVectorIndex
+from decision_graph.decision_trace_pipeline import DecisionTracePipeline
+
+backend = InMemoryBackend()
+pipeline = DecisionTracePipeline(
+    backend=backend,
+    executor=LiteLLMAdapter(),
+    vector_index=InMemoryVectorIndex(),
+    graph_store=InMemoryGraphStore(),
+)
+
+async def main():
+    decisions = await pipeline.run_from_text(
+        conv_text="Alice: We decided to switch from REST to GraphQL for the new API...",
+        conv_id="standup-2024-01-15",
+        gid="engineering-team",
+        updated_at=1705334400.0,
+        summary_pid="summary_standup-2024-01-15",
+        query_gids=["engineering-team"],
+    )
+    print(f"Extracted {len(decisions)} decisions")
+
+asyncio.run(main())
+```
+
+## See it in Action
+
+The [`examples/`](examples/) directory includes sample conversations and an interactive viewer with dashboards, a cluster board, timeline, and force-directed graph.
+
+```bash
+cd examples
+export OPENAI_API_KEY=sk-...   # or any LiteLLM-supported provider
+python run.py                  # opens browser with live pipeline progress
+```
+
+Options: `--port 9000`, `--no-browser`, `--model anthropic/claude-3.5-sonnet`, or pass your own files (`python run.py my_notes.txt`).
+
 ## What is this?
 
 **py-context-graph** turns messy conversation text (meeting notes, Slack threads, standups) into a structured decision graph. It uses LLMs to:
@@ -36,7 +83,7 @@ pip install py-context-graph[firestore] # Google Cloud Firestore backend
 pip install py-context-graph[memory]    # In-memory TF-IDF vector index (pandas)
 ```
 
-## Quick start
+## Usage
 
 ```python
 import asyncio
@@ -162,27 +209,6 @@ class MyLLMAdapter(LLMAdapter):
         # Call your LLM, return parsed result
         ...
 ```
-
-## Examples
-
-See the [`examples/`](examples/) directory for a complete demo that:
-- Processes sample conversation files through the full pipeline
-- Shows live pipeline progress in the browser as conversations are processed
-- Generates an interactive HTML viewer with Insights dashboard, Cluster Board, Timeline, Person x Cluster matrix, and Explore (force-directed graph) views
-
-```bash
-cd examples
-pip install py-context-graph[all]
-export OPENAI_API_KEY=sk-...   # or any LiteLLM-supported provider
-python run.py                  # opens browser automatically
-```
-
-The viewer opens immediately and shows pipeline progress in real time. When processing completes, the dashboard appears with all visualizations.
-
-Options:
-- `python run.py --port 9000` — use a different port
-- `python run.py --no-browser` — don't auto-open the browser
-- `python run.py my_notes.txt` — process your own conversation files
 
 ## Project structure
 
