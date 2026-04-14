@@ -4,7 +4,8 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal
+    Literal,
+    Optional
 )
 
 from pydantic import AliasChoices
@@ -68,10 +69,10 @@ class EvidenceRef(BaseModel):
     channel: str
     gid: str
     cid: str
-    message_id: str | None = None
-    ts: int | None = None
-    author: str | None = None
-    excerpt: str | None = None
+    message_id: Optional[str] = None
+    ts: Optional[int] = None
+    author: Optional[str] = None
+    excerpt: Optional[str] = None
 
 
 class ConstraintOverride(BaseModel):
@@ -84,7 +85,7 @@ class ConstraintEvaluation(BaseModel):
     constraint_value: Any
     evaluated_on: Dict[str, Any]
     result: Literal["pass", "fail", "overridden", "unknown"]
-    override: ConstraintOverride | None = None
+    override: Optional[ConstraintOverride] = None
 
 
 class AlternativeConsidered(BaseModel):
@@ -104,9 +105,9 @@ class DecisionUnitRow(BaseModel):
     updated_at: float
     recorded_at: float
     decision_type: str
-    decision_subtype: str | None = None
+    decision_subtype: Optional[str] = None
 
-    initiator_name: str | None = None
+    initiator_name: Optional[str] = None
     initiator_role: InitiatorRole = "unknown"
     counterparty_names: List[str] = Field(default_factory=list)
 
@@ -114,10 +115,10 @@ class DecisionUnitRow(BaseModel):
 
     action_type: ActionType
     action_desc: str
-    action_key: str | None = None
+    action_key: Optional[str] = None
 
     status_state: StatusState = "unknown"
-    status_blocker: str | None = None
+    status_blocker: Optional[str] = None
 
     evidence_span: str
     confidence: float = Field(ge=0.0, le=1.0)
@@ -143,7 +144,7 @@ class DecisionUnitRowList(BaseModel):
 
 
 class DecisionUnitCoreExtractActors(BaseModel):
-    initiator_name: str | None
+    initiator_name: Optional[str]
     initiator_role: InitiatorRole
     counterparty_names: List[str]
 
@@ -164,7 +165,7 @@ class DecisionUnitCoreExtractAction(BaseModel):
 
 class DecisionUnitCoreExtractStatus(BaseModel):
     state: StatusState
-    blocker: str | None
+    blocker: Optional[str]
 
 
 class DecisionUnitCoreExtractEvidence(BaseModel):
@@ -217,7 +218,7 @@ class DecisionEnrichmentRow(BaseModel):
 
     constraint_evaluations: List[ConstraintEvaluation] = Field(default_factory=list)
     alternatives_considered: List[AlternativeConsidered] = Field(default_factory=list)
-    selected_alternative: SelectedAlternative | None = None
+    selected_alternative: Optional[SelectedAlternative] = None
     rejection_reasons: List[str] = Field(default_factory=list)
 
     @staticmethod

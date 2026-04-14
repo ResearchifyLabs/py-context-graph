@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 INTERNAL_TEAM_DECISION_TYPES = [
     "ActionRequest",
@@ -69,7 +70,7 @@ INDUSTRY_PROFILES: dict[str, list[str]] = {
 }
 
 
-def allowed_decision_types_for_industry(industry_type: str | None) -> list[str]:
+def allowed_decision_types_for_industry(industry_type: Optional[str]) -> list[str]:
     industry_type = (industry_type or "").strip().lower()
     if not industry_type:
         return INDUSTRY_PROFILES["generic_b2b"]
