@@ -7,8 +7,8 @@
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 :root {
-  --bg: #f1f5f9; --surface: #fff; --text: #0f172a; --text-2: #475569; --text-3: #94a3b8;
-  --border: #e2e8f0; --primary: #6366f1; --primary-light: #eef2ff;
+  --bg: #1a1a1a; --surface: #2d2d2d; --text: #000000; --text-2: #666666; --text-3: #999999;
+  --border: #404040; --primary: #6366f1; --primary-light: #eef2ff;
   --radius: 12px;
   --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --shadow-lg: 0 4px 6px rgba(0,0,0,.05), 0 10px 15px rgba(0,0,0,.03);
@@ -79,7 +79,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .cluster-card{background:var(--bg);border-radius:8px;padding:.9rem 1rem;border-left:3px solid var(--primary);cursor:pointer;transition:.15s}
 .cluster-card:hover{transform:translateY(-1px);box-shadow:var(--shadow-lg)}
 .cc-name{font-size:.85rem;font-weight:700;margin-bottom:.25rem;line-height:1.3}
-.cc-summary{font-size:.75rem;color:var(--text-2);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cc-summary{font-size:.75rem;color:var(--text-2);line-height:1.4;display:-webkit-box;display:box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;box-orient:vertical;overflow:hidden}
 .cc-micro{display:flex;height:4px;border-radius:2px;overflow:hidden;margin-top:.5rem;gap:1px}
 .cc-micro-seg{border-radius:2px}
 .cc-footer{display:flex;gap:.7rem;margin-top:.35rem;font-size:.7rem;color:var(--text-3)}
@@ -96,7 +96,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .cb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1rem;align-items:start}
 .cb-cluster{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:1rem;border-top:3px solid var(--primary)}
 .cb-name{font-size:.88rem;font-weight:700;line-height:1.3}
-.cb-summary{font-size:.72rem;color:var(--text-2);line-height:1.4;margin-top:.2rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cb-summary{font-size:.72rem;color:var(--text-2);line-height:1.4;margin-top:.2rem;display:-webkit-box;display:box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;box-orient:vertical;overflow:hidden}
 .cb-meta{display:flex;align-items:center;gap:.5rem;margin-top:.4rem;font-size:.7rem;color:var(--text-3)}
 .cb-avatars{display:flex}
 .cb-avatar{width:20px;height:20px;border-radius:50%;background:#ede9fe;color:#7c3aed;font-size:.58rem;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface);margin-left:-4px}
@@ -129,7 +129,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .tl-card[data-status="proposed"]{border-left-color:var(--proposed)}
 .tl-card-subject{font-weight:600;line-height:1.3}
 .tl-card-meta{font-size:.68rem;color:var(--text-3);margin-top:.15rem}
-.tl-card-action{font-size:.68rem;color:var(--text-2);margin-top:.1rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tl-card-action{font-size:.68rem;color:var(--text-2);margin-top:.1rem;display:-webkit-box;display:box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;box-orient:vertical;overflow:hidden}
 .tl-section-label{grid-column:1/-1;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:.75rem .75rem .35rem;background:var(--surface);border-bottom:1px solid var(--border)}
 .tl-arrow{position:absolute;top:50%;right:-14px;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid var(--primary);opacity:.3;transform:translateY(-50%)}
 

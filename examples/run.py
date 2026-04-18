@@ -81,6 +81,35 @@ async def handle_graph_data(request):
     graph_data = build_vis_graph(gs.graph_arrays, gs.hydrated_clusters)
     return web.json_response(graph_data, dumps=lambda x: json.dumps(x, default=str))
 
+async def handle_upload(request):
+    """Handle file upload and trigger pipeline."""
+    try:
+        # Get uploaded file
+        reader = await request.multipart()
+        field = await reader.next()
+        if not field or field.name is None:
+            return web.json_response({"error": "No file uploaded"}, status=400)
+        
+        # Save uploaded file to temp location
+        import tempfile
+        import os
+        temp_dir = tempfile.mkdtemp()
+        file_path = os.path.join(temp_dir, field.name)
+        
+        # Write file content
+        content = await field.read(decode=True)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # Trigger pipeline on uploaded file
+        await run_demo([Path(file_path)], GraphConfig(model="gpt-4.1-mini"))
+        
+        return web.json_response({"message": "File uploaded and processing started"})
+        
+    except Exception as e:
+        _logger.error(f"Upload error: {e}")
+        return web.json_response({"error": str(e)}, status=500)
+
 
 # ---------------------------------------------------------------------------
 # Pipeline
@@ -223,12 +252,14 @@ async def main():
         webbrowser.open(url)
 
     try:
-        await run_demo(args.files, config)
-        _write_status("done")
-        _logger.info("Done. %d clusters. Viewer: %s — press Ctrl+C to stop", len(_state["graph_store"].hydrated_clusters), url)
-
-        while True:
-            await asyncio.sleep(3600)
+        # Only auto-run if files are passed via CLI
+        if args.files:
+            await run_demo(args.files, config)
+            _write_status("done")
+            _logger.info("Done. %d clusters. Viewer: %s — press Ctrl+C to stop", len(_state["graph_store"].hydrated_clusters), url)
+            
+            while True:
+                await asyncio.sleep(3600)
     except asyncio.CancelledError:
         pass
     finally:
