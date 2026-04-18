@@ -155,7 +155,7 @@ class DecisionEnrichmentRetrieval:
         return _jaccard_similarity_fn(a, b)
 
     @staticmethod
-    def canonicalize_subject_label(subject_label: str | None) -> str:
+    def canonicalize_subject_label(subject_label: Optional[str]) -> str:
         return _canonicalize_subject_label(subject_label)
 
     def invalidate_duplicate_decision_trace_projections_within_conversation(

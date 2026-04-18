@@ -77,10 +77,11 @@ pip install py-context-graph
 With optional backends:
 
 ```bash
-pip install py-context-graph[all]       # LiteLLM + Firestore + in-memory vector index
+pip install py-context-graph[all]       # LiteLLM + Firestore + Neo4j + in-memory vector index
 pip install py-context-graph[llm]       # LiteLLM adapter only
 pip install py-context-graph[firestore] # Google Cloud Firestore backend
 pip install py-context-graph[memory]    # In-memory TF-IDF vector index (pandas)
+pip install py-context-graph[neo4j]    # Neo4j graph backend
 ```
 
 ## Usage
@@ -122,6 +123,52 @@ async def main():
 asyncio.run(main())
 ```
 
+### Neo4j Backend
+
+For persistent graph storage using Neo4j:
+
+```python
+import asyncio
+from neo4j import GraphDatabase
+from decision_graph import LiteLLMAdapter
+from decision_graph.backends.memory import InMemoryBackend
+from decision_graph.backends.memory.stores import InMemoryVectorIndex
+from decision_graph.backends.neo4j import Neo4jGraphStore
+from decision_graph.decision_trace_pipeline import DecisionTracePipeline
+
+# Create Neo4j connection
+driver = GraphDatabase.driver("bolt://localhost:7687", auth=("neo4j", "password"))
+
+# Setup pipeline with Neo4j backend
+backend = InMemoryBackend()
+pipeline = DecisionTracePipeline(
+    backend=backend,
+    executor=LiteLLMAdapter(),
+    vector_index=InMemoryVectorIndex(),
+    graph_store=Neo4jGraphStore(driver),
+)
+
+async def main():
+    decisions = await pipeline.run_from_text(
+        conv_text="Alice: We decided to switch from REST to GraphQL for the new API...",
+        conv_id="standup-2024-01-15",
+        gid="engineering-team",
+        updated_at=1705334400.0,
+        summary_pid="summary_standup-2024-01-15",
+        query_gids=["engineering-team"],
+    )
+    print(f"Extracted {len(decisions)} decisions")
+    
+    # Data is now stored in Neo4j as:
+    # - Cluster nodes with metadata
+    # - Decision nodes linked to clusters
+    # - Enrichment nodes (topics, entities, constraints, facts, initiators)
+    
+    driver.close()
+
+asyncio.run(main())
+```
+
 ## Key concepts
 
 ### The four protocols
@@ -133,7 +180,7 @@ py-context-graph is built around pluggable interfaces. You only implement what y
 | **`StorageBackend`** | Groups 4 document stores (enrichments, projections, clusters, links) | `InMemoryBackend`, `FirestoreBackend` |
 | **`LLMAdapter`** | Executes LLM calls for extraction and enrichment | `LiteLLMAdapter` (supports OpenAI, Anthropic, and any LiteLLM provider) |
 | **`VectorIndex`** | Similarity search for cross-conversation clustering | `InMemoryVectorIndex` (TF-IDF + cosine) |
-| **`GraphStore`** | Write-only sync of hydrated clusters to a graph DB | `InMemoryGraphStore`, `NullGraphStore` |
+| **`GraphStore`** | Write-only sync of hydrated clusters to a graph DB | `InMemoryGraphStore`, `NullGraphStore`, `Neo4jGraphStore` |
 
 ### DecisionGraph facade
 

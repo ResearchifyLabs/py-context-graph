@@ -7,15 +7,32 @@
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 :root {
-  --bg: #f1f5f9; --surface: #fff; --text: #0f172a; --text-2: #475569; --text-3: #94a3b8;
-  --border: #e2e8f0; --primary: #6366f1; --primary-light: #eef2ff;
-  --radius: 12px;
-  --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-lg: 0 4px 6px rgba(0,0,0,.05), 0 10px 15px rgba(0,0,0,.03);
-  --done: #10b981; --progress: #3b82f6; --blocked: #ef4444; --proposed: #f59e0b; --unknown-s: #94a3b8;
+  --bg: rgba(255,255,255,0.92);
+  --surface: rgba(255,255,255,0.88);
+  --text: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
+  --border: rgba(148,163,184,0.24);
+  --primary: #6366f1;
+  --primary-light: #e0e7ff;
+  --radius: 16px;
+  --shadow: 0 18px 60px rgba(15,23,42,.08);
+  --shadow-lg: 0 24px 80px rgba(15,23,42,.12);
+  --done: #10b981;
+  --progress: #3b82f6;
+  --blocked: #ef4444;
+  --proposed: #f59e0b;
+  --unknown-s: #94a3b8;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#eef2ff;color:var(--text);line-height:1.5;background-image:
+  radial-gradient(circle at 20% 10%, rgba(99,102,241,.12) 0%, rgba(99,102,241,0) 28%),
+  radial-gradient(circle at 80% 15%, rgba(168,85,247,.12) 0%, rgba(168,85,247,0) 30%),
+  radial-gradient(circle at 15% 80%, rgba(56,189,248,.14) 0%, rgba(56,189,248,0) 24%),
+  radial-gradient(circle at 85% 70%, rgba(249,115,22,.12) 0%, rgba(249,115,22,0) 28%),
+  linear-gradient(180deg, #f8fafc 0%, #eff6ff 35%, #f1f5f9 100%);
+  background-attachment: fixed;
+}
 
 /* Header */
 header{background:var(--surface);border-bottom:1px solid var(--border);padding:1.1rem 2rem;display:flex;justify-content:space-between;align-items:center}
@@ -226,6 +243,37 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .dc-kvk{font-weight:600;color:var(--text)}
 .empty-state{text-align:center;padding:3rem;color:var(--text-3);font-size:.85rem}
 #error{color:var(--blocked);text-align:center;padding:2rem;display:none}
+#landing-screen{display:none;max-width:920px;margin:4rem auto;padding:2.5rem;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(248,250,252,.95));border:1px solid rgba(148,163,184,.2);border-radius:30px;box-shadow:0 30px 80px rgba(15,23,42,.12);backdrop-filter:blur(18px);position:relative;overflow:hidden}
+#landing-screen::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 25% 20%, rgba(99,102,241,.08), transparent 18%),radial-gradient(circle at 80% 10%, rgba(168,85,247,.08), transparent 16%),radial-gradient(circle at 60% 85%, rgba(34,211,238,.08), transparent 20%);pointer-events:none;}
+#landing-screen > *{position:relative;z-index:1}
+.landing-head{margin-bottom:1.25rem;display:flex;align-items:flex-start;gap:1.25rem;}
+.landing-head h2{font-size:2rem;line-height:1.05;margin-bottom:.35rem;color:var(--text)}
+.landing-head p{color:var(--text-2);line-height:1.75;max-width:640px}
+.landing-head .hero-badge{display:inline-flex;align-items:center;gap:.5rem;padding:.45rem .85rem;border-radius:999px;background:rgba(99,102,241,.12);color:var(--primary);font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.sample-list{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:1rem;margin:1rem 0}
+.sample-option{position:relative;display:flex;align-items:center;gap:.75rem;padding:1rem 1.1rem;background:#fff;border:1px solid transparent;border-radius:18px;cursor:pointer;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,background .2s ease;box-shadow:0 12px 30px rgba(15,23,42,.05)}
+.sample-option:hover{transform:translateY(-2px);border-color:rgba(99,102,241,.35);box-shadow:0 16px 40px rgba(15,23,42,.09);background:rgba(99,102,241,.04)}
+.sample-option.selected{border-color:var(--primary);background:rgba(99,102,241,.12)}
+.sample-option input{margin:0;width:1.1rem;height:1.1rem;accent-color:var(--primary)}
+.landing-section{margin-top:1.75rem}
+.landing-section h3{font-size:1rem;margin-bottom:.65rem;color:var(--text)}
+.landing-section p{color:var(--text-2);margin-bottom:.9rem}
+.landing-actions{display:flex;gap:1rem;flex-wrap:wrap}
+.btn{border:none;border-radius:999px;font-weight:700;padding:.95rem 1.4rem;cursor:pointer;transition:.2s ease}
+.btn-primary{background:linear-gradient(135deg,#6366f1,#3b82f6);color:#fff;box-shadow:0 14px 30px rgba(59,130,246,.25)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 18px 40px rgba(59,130,246,.28)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border);box-shadow:0 10px 25px rgba(15,23,42,.05)}
+.btn-secondary:hover{background:var(--bg);border-color:rgba(99,102,241,.25)}
+#upload-file{width:100%;padding:1rem 1.1rem;border:1px solid var(--border);border-radius:18px;background:var(--surface);outline:none}
+#add-more-btn{display:none;padding:.7rem 1.2rem;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;box-shadow:0 12px 24px rgba(15,23,42,.08)}
+#add-more-btn:hover{background:var(--primary-light);border-color:var(--primary)}
+.landing-note{margin-top:1rem;color:var(--text-2);font-size:.93rem}
+.landing-cta-panel{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:1.5rem}
+.landing-card{background:#fff;border-radius:22px;padding:1.25rem;box-shadow:0 18px 40px rgba(15,23,42,.06);border:1px solid transparent;transition:transform .2s ease,border-color .2s ease}
+.landing-card:hover{transform:translateY(-2px);border-color:rgba(99,102,241,.25)}
+.landing-card h4{margin-bottom:.55rem;color:var(--text)}
+.landing-card p{color:var(--text-2);line-height:1.6;font-size:.92rem}
+.highlight-text{color:var(--primary);font-weight:700}
 
 /* Pipeline progress screen */
 #pipeline-progress{display:none;max-width:520px;margin:6rem auto;padding:2rem;text-align:center}
@@ -253,6 +301,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
     <p class="tagline">Decision intelligence extracted from conversations</p>
   </div>
   <div id="header-stats"></div>
+  <button id="add-more-btn" class="btn btn-secondary">Add more files</button>
 </header>
 
 <nav class="tabs">
@@ -260,6 +309,38 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
   <button class="tab" data-tab="graph">Visualize</button>
   <button class="tab" data-tab="decisions">Decisions</button>
 </nav>
+
+<div id="landing-screen">
+  <div class="landing-head">
+    <div>
+      <div class="hero-badge">Interactive Demo</div>
+      <h2>Discover decisions in conversations</h2>
+      <p>Pick demo files or upload your own notes, then watch the pipeline extract decisions, add context, and reveal clusters in a sleek dashboard.</p>
+      <p class="landing-note">The viewer stays interactive: run demo content, upload your sample, and keep exploring with the "Add more files" action.</p>
+    </div>
+    <div class="landing-card">
+      <h4>What you can do</h4>
+      <p><span class="highlight-text">Run Demo</span> to try built-in conversation samples instantly.</p>
+      <p><span class="highlight-text">Upload</span> your own .txt or .md file to see custom decisions extracted live.</p>
+    </div>
+  </div>
+  <div class="landing-card landing-section">
+    <h3>Run Demo Conversations</h3>
+    <p>Select one or more bundled sample conversations to process.</p>
+    <div class="sample-list">
+      <label class="sample-option"><input type="checkbox" name="sample-file" value="sample_conversation_1.txt" checked> sample_conversation_1.txt</label>
+      <label class="sample-option"><input type="checkbox" name="sample-file" value="sample_conversation_2.txt" checked> sample_conversation_2.txt</label>
+      <label class="sample-option"><input type="checkbox" name="sample-file" value="sample_conversation_3.txt" checked> sample_conversation_3.txt</label>
+    </div>
+    <div class="landing-actions"><button id="run-demo-btn" class="btn btn-primary">Run Demo</button></div>
+  </div>
+  <div class="landing-card landing-section">
+    <h3>Upload My File</h3>
+    <p>Choose a conversation from your computer and process it instantly.</p>
+    <input type="file" id="upload-file" accept=".txt,.md" />
+    <div class="landing-actions"><button id="upload-btn" class="btn btn-primary">Upload and Run</button></div>
+  </div>
+</div>
 
 <div id="error"></div>
 
@@ -371,6 +452,7 @@ const PIPELINE_STEPS = [
 ];
 
 function showPipelineProgress(status) {
+  hideLandingScreen();
   const el = document.getElementById('pipeline-progress');
   const stepsEl = document.getElementById('pp-steps');
   const convLabel = document.getElementById('pp-conv-label');
@@ -393,8 +475,75 @@ function showPipelineProgress(status) {
 
 function hidePipelineProgress() {
   document.getElementById('pipeline-progress').style.display = 'none';
+  hideLandingScreen();
   document.querySelectorAll('.tabs').forEach(s => s.style.display = 'flex');
   switchTab('insights');
+}
+
+function showLandingScreen() {
+  hideError();
+  document.getElementById('landing-screen').style.display = 'block';
+  document.getElementById('pipeline-progress').style.display = 'none';
+  document.querySelectorAll('.tabs').forEach(s => s.style.display = 'none');
+  document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
+  document.getElementById('add-more-btn').style.display = 'none';
+}
+
+function hideLandingScreen() {
+  document.getElementById('landing-screen').style.display = 'none';
+  document.querySelectorAll('.tabs').forEach(s => s.style.display = 'flex');
+}
+
+function showError(message) {
+  const el = document.getElementById('error');
+  el.style.display = 'block';
+  el.textContent = message;
+}
+
+function hideError() {
+  const el = document.getElementById('error');
+  el.style.display = 'none';
+  el.textContent = '';
+}
+
+async function startDemo(files) {
+  hideError();
+  hideLandingScreen();
+  showPipelineProgress({step: 'extract', conversation: 'Starting demo...', conversation_progress: ''});
+  try {
+    const res = await fetch('/api/run-demo', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({files}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Unable to start demo');
+    }
+    pollPipeline();
+  } catch (err) {
+    showLandingScreen();
+    showError(err.message || 'Failed to start demo');
+  }
+}
+
+async function uploadFile(file) {
+  hideError();
+  hideLandingScreen();
+  showPipelineProgress({step: 'extract', conversation: `Uploading ${file.name}`, conversation_progress: ''});
+  try {
+    const body = new FormData();
+    body.append('file', file);
+    const res = await fetch('/api/upload', {method: 'POST', body});
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Unable to upload file');
+    }
+    pollPipeline();
+  } catch (err) {
+    showLandingScreen();
+    showError(err.message || 'Failed to upload file');
+  }
 }
 
 async function fetchResults() {
@@ -413,8 +562,7 @@ async function loadData() {
   try {
     const res = await fetch('/api/status');
     if (!res.ok) {
-      document.getElementById('error').style.display = 'block';
-      document.getElementById('error').textContent = 'No data found. Run: python run.py';
+      showError('No data found. Make sure python run.py is running and try again.');
       return;
     }
     const status = await res.json();
@@ -424,12 +572,10 @@ async function loadData() {
       showPipelineProgress(status);
       pollPipeline();
     } else {
-      document.getElementById('error').style.display = 'block';
-      document.getElementById('error').textContent = 'No data found. Run: python run.py';
+      showLandingScreen();
     }
   } catch (_) {
-    document.getElementById('error').style.display = 'block';
-    document.getElementById('error').textContent = 'No data found. Run: python run.py';
+    showError('No data found. Make sure python run.py is running and try again.');
   }
 }
 
@@ -1268,7 +1414,39 @@ function init() {
   document.querySelectorAll('.subnav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchSubview(btn.dataset.subview));
   });
+  document.getElementById('add-more-btn').style.display = 'inline-flex';
 }
+
+document.getElementById('run-demo-btn').addEventListener('click', () => {
+  const files = Array.from(document.querySelectorAll('input[name="sample-file"]:checked')).map(el => el.value);
+  startDemo(files);
+});
+
+document.getElementById('upload-btn').addEventListener('click', () => {
+  const fileInput = document.getElementById('upload-file');
+  if (!fileInput.files || !fileInput.files[0]) {
+    showError('Please choose a .txt or .md file to upload.');
+    return;
+  }
+  uploadFile(fileInput.files[0]);
+});
+
+document.getElementById('add-more-btn').addEventListener('click', () => {
+  showLandingScreen();
+});
+
+function refreshSampleOptions() {
+  document.querySelectorAll('.sample-option').forEach(label => {
+    const input = label.querySelector('input[name="sample-file"]');
+    label.classList.toggle('selected', input.checked);
+  });
+}
+
+document.querySelectorAll('input[name="sample-file"]').forEach(input => {
+  input.addEventListener('change', refreshSampleOptions);
+});
+
+refreshSampleOptions();
 
 loadData();
 </script>
