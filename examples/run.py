@@ -22,7 +22,9 @@ import json
 import logging
 import os
 import re
+import tempfile
 import time
+import uuid
 import webbrowser
 from pathlib import Path
 from typing import List
@@ -46,8 +48,10 @@ DEMO_DIR = Path(__file__).parent
 _state = {
     "status": {"step": "idle"},
     "backend": None,
+    "vector_index": None,
     "graph_store": None,
     "dg": None,
+    "config": None,
     "gid": "demo_group",
 }
 
@@ -80,6 +84,68 @@ async def handle_graph_data(request):
     gs = _state["graph_store"]
     graph_data = build_vis_graph(gs.graph_arrays, gs.hydrated_clusters)
     return web.json_response(graph_data, dumps=lambda x: json.dumps(x, default=str))
+
+
+async def handle_run_demo(request):
+    if _state["status"]["step"] not in ("idle", "done"):
+        return web.json_response({"error": "Pipeline already running"}, status=409)
+
+    selected = []
+    try:
+        payload = await request.json()
+        if isinstance(payload, dict) and payload.get("files"):
+            selected = [f for f in payload.get("files", []) if isinstance(f, str)]
+    except Exception:
+        selected = []
+
+    sample_files = sorted(DEMO_DIR.glob("sample_conversation_*.txt"))
+    if selected:
+        conv_files = [DEMO_DIR / file_name for file_name in selected if (DEMO_DIR / file_name).is_file()]
+        if not conv_files:
+            return web.json_response({"error": "No valid sample files selected"}, status=400)
+    else:
+        conv_files = sample_files
+
+    asyncio.create_task(run_demo(conv_files, _state["config"] or GraphConfig()))
+    return web.json_response({"started": True})
+
+
+async def handle_upload(request):
+    if _state["status"]["step"] not in ("idle", "done"):
+        return web.json_response({"error": "Pipeline already running"}, status=409)
+
+    reader = await request.multipart()
+    field = await reader.next()
+    while field is not None and field.name != "file":
+        field = await reader.next()
+
+    if field is None or not field.filename:
+        return web.json_response({"error": "No file uploaded"}, status=400)
+
+    filename = field.filename
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".txt", ".md"}:
+        return web.json_response({"error": "Only .txt and .md files are supported"}, status=400)
+
+    tmp_path = Path(tempfile.gettempdir()) / f"decision_graph_upload_{uuid.uuid4().hex}{suffix}"
+    with tmp_path.open("wb") as tmp_file:
+        while True:
+            chunk = await field.read_chunk()
+            if not chunk:
+                break
+            tmp_file.write(chunk)
+
+    async def upload_task():
+        try:
+            await run_demo([tmp_path], _state["config"] or GraphConfig())
+        finally:
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+
+    asyncio.create_task(upload_task())
+    return web.json_response({"started": True})
 
 
 # ---------------------------------------------------------------------------
@@ -127,9 +193,18 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
 
     _write_status("extract", "Initializing...")
 
-    backend = InMemoryBackend()
-    vector_index = InMemoryVectorIndex()
-    graph_store = InMemoryGraphStore()
+    if _state["backend"] and _state["graph_store"] and _state["vector_index"]:
+        backend = _state["backend"]
+        vector_index = _state["vector_index"]
+        graph_store = _state["graph_store"]
+    else:
+        backend = InMemoryBackend()
+        vector_index = InMemoryVectorIndex()
+        graph_store = InMemoryGraphStore()
+        _state["backend"] = backend
+        _state["vector_index"] = vector_index
+        _state["graph_store"] = graph_store
+
     llm_adapter = LiteLLMAdapter()
     dg = DecisionGraph(backend=backend, executor=llm_adapter, config=config)
     pipeline = DecisionTracePipeline(
@@ -140,8 +215,6 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
         config=config,
     )
 
-    _state["backend"] = backend
-    _state["graph_store"] = graph_store
     _state["dg"] = dg
 
     gid = _state["gid"]
@@ -173,6 +246,9 @@ async def run_demo(conv_files: List[Path], config: GraphConfig):
                 conv_label=conv_label, conv_progress=conv_progress,
             )
 
+    _write_status("done")
+    _logger.info("Pipeline finished. Current status step set to done.")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -203,12 +279,15 @@ def parse_args():
 async def main():
     args = parse_args()
     config = GraphConfig(model=args.model)
+    _state["config"] = config
     _logger.info("Using model: %s", config.model)
 
     app = web.Application()
     app.router.add_get('/api/status', handle_status)
     app.router.add_get('/api/output', handle_output)
     app.router.add_get('/api/graph-data', handle_graph_data)
+    app.router.add_post('/api/run-demo', handle_run_demo)
+    app.router.add_post('/api/upload', handle_upload)
     app.router.add_static('/', DEMO_DIR)
 
     runner = web.AppRunner(app, access_log=None)
@@ -222,11 +301,10 @@ async def main():
     if not args.no_browser:
         webbrowser.open(url)
 
-    try:
-        await run_demo(args.files, config)
-        _write_status("done")
-        _logger.info("Done. %d clusters. Viewer: %s — press Ctrl+C to stop", len(_state["graph_store"].hydrated_clusters), url)
+    if args.files:
+        asyncio.create_task(run_demo(args.files, config))
 
+    try:
         while True:
             await asyncio.sleep(3600)
     except asyncio.CancelledError:
