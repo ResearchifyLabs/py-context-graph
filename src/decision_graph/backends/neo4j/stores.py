@@ -18,13 +18,11 @@ class Neo4jGraphStore(GraphStore):
 
     Node model
     ----------
-    Shared concept nodes (MERGE on semantic identity — multiple decisions can
-    point to the same node, enabling real graph traversal):
-      * Topic      {name}                   — normalised topic text
-      * Entity     {name, type}             — technology / person / org …
-        - Initiators  → (d)-[:INITIATED_BY]→(Entity {type:'Person'})
-        - Counterparts→ (d)-[:HAS_COUNTERPARTY]→(Entity {type:'Person'})
-        - Mentions    → (d)-[:MENTIONS_ENTITY]→(Entity)
+    Shared concept nodes (MERGE on semantic identity):
+      * Topic  {name}         — normalised topic text
+      * Entity {name, type}   — technology / person / org …
+        - Initiators → (d)-[:INITIATED_BY]->(Entity {type:'Person'})
+        - Mentions   → (d)-[:MENTIONS_ENTITY]->(Entity)
 
     Per-decision nodes (owned by exactly one Decision):
       * Constraint {decision_id, text}
@@ -49,8 +47,7 @@ class Neo4jGraphStore(GraphStore):
 
             _logger.info(
                 "Neo4j ingestion: %d clusters, %d decisions, %d topics, "
-                "%d constraints, %d entities, %d facts, %d initiators, "
-                "%d counterparties",
+                "%d constraints, %d entities, %d facts, %d initiators",
                 len(arrays["clusters"]),
                 len(arrays["decisions"]),
                 len(arrays["decision_topics"]),
@@ -58,7 +55,6 @@ class Neo4jGraphStore(GraphStore):
                 len(arrays["decision_entities"]),
                 len(arrays["decision_facts"]),
                 len(arrays["decision_initiators"]),
-                len(arrays.get("decision_counterparties", [])),
             )
 
             with self._driver.session(database=self._database) as session:
@@ -76,9 +72,6 @@ class Neo4jGraphStore(GraphStore):
                 self._upsert_entities(session, arrays["decision_entities"])
                 self._upsert_facts(session, arrays["decision_facts"])
                 self._upsert_initiators(session, arrays["decision_initiators"])
-                self._upsert_counterparties(
-                    session, arrays.get("decision_counterparties", [])
-                )
 
             counts = {k: len(v) for k, v in arrays.items()}
             _logger.info("Neo4j ingestion complete: %s", counts)
@@ -93,18 +86,14 @@ class Neo4jGraphStore(GraphStore):
 
     def _create_constraints(self, session) -> None:
         constraints = [
-            # Cluster / Decision — unique by their own ID
             "CREATE CONSTRAINT cluster_id_unique IF NOT EXISTS "
             "FOR (c:Cluster) REQUIRE c.cluster_id IS UNIQUE",
             "CREATE CONSTRAINT decision_id_unique IF NOT EXISTS "
             "FOR (d:Decision) REQUIRE d.decision_id IS UNIQUE",
-            # Topic — shared concept node, unique by normalised name
             "CREATE CONSTRAINT topic_name_unique IF NOT EXISTS "
             "FOR (t:Topic) REQUIRE t.name IS UNIQUE",
-            # Entity — shared, unique by (name, type) pair
             "CREATE CONSTRAINT entity_name_type_unique IF NOT EXISTS "
             "FOR (e:Entity) REQUIRE (e.name, e.type) IS NODE KEY",
-            # Constraint / Fact — per-decision owned nodes
             "CREATE CONSTRAINT constraint_unique IF NOT EXISTS "
             "FOR (c:Constraint) REQUIRE (c.decision_id, c.text) IS NODE KEY",
             "CREATE CONSTRAINT fact_unique IF NOT EXISTS "
@@ -127,7 +116,7 @@ class Neo4jGraphStore(GraphStore):
             """
             UNWIND $clusters AS cluster
             MERGE (c:Cluster {cluster_id: cluster.cluster_id})
-            SET c.gid            = cluster.gid,
+            SET c.gid             = cluster.gid,
                 c.primary_subject = cluster.primary_subject,
                 c.created_at      = cluster.created_at,
                 c.last_updated_at = cluster.last_updated_at,
@@ -154,11 +143,6 @@ class Neo4jGraphStore(GraphStore):
         )
 
     def _link_clusters_decisions(self, session, decision_cluster: List[Dict]) -> None:
-        """Create HAS_DECISION edges (Cluster → Decision).
-
-        Relationship name must match ``context_graph/registry.py`` so that
-        graph queries using ``ALL_REL_TYPES`` can traverse Cluster→Decision.
-        """
         if not decision_cluster:
             return
         session.run(
@@ -172,25 +156,21 @@ class Neo4jGraphStore(GraphStore):
         )
 
     # ------------------------------------------------------------------
-    # Enrichment edge cleanup (run before re-writing enrichment)
+    # Enrichment edge cleanup
     # ------------------------------------------------------------------
 
     def _delete_enrichment_edges(self, session, decision_ids: List[str]) -> None:
         if not decision_ids:
             return
-
-        # Shared-node relationships — delete the edge, keep the concept node.
         session.run(
             """
             UNWIND $decision_ids AS did
             MATCH (d:Decision {decision_id: did})
-            OPTIONAL MATCH (d)-[r:HAS_TOPIC|MENTIONS_ENTITY|INITIATED_BY|HAS_COUNTERPARTY]->()
+            OPTIONAL MATCH (d)-[r:HAS_TOPIC|MENTIONS_ENTITY|INITIATED_BY]->()
             DELETE r
             """,
             decision_ids=decision_ids,
         )
-
-        # Per-decision nodes — delete both the edge and the owned node.
         session.run(
             """
             UNWIND $decision_ids AS did
@@ -206,11 +186,6 @@ class Neo4jGraphStore(GraphStore):
     # ------------------------------------------------------------------
 
     def _upsert_topics(self, session, topics: List[Dict]) -> None:
-        """Topic is a shared concept node (MERGE on name).
-
-        Multiple decisions can link to the same Topic, enabling
-        ``TOPIC_RELATED_DECISIONS_V1`` traversals.
-        """
         if not topics:
             return
         session.run(
@@ -224,11 +199,6 @@ class Neo4jGraphStore(GraphStore):
         )
 
     def _upsert_entities(self, session, entities: List[Dict]) -> None:
-        """Entity is a shared concept node (MERGE on name + type).
-
-        The relationship name ``MENTIONS_ENTITY`` matches the registry and
-        all Cypher templates.
-        """
         if not entities:
             return
         session.run(
@@ -243,11 +213,6 @@ class Neo4jGraphStore(GraphStore):
         )
 
     def _upsert_initiators(self, session, initiators: List[Dict]) -> None:
-        """Initiator is a Person Entity (MERGE on name + type='Person').
-
-        The relationship name ``INITIATED_BY`` matches the registry and
-        templates such as ``TOPIC_RELATED_DECISIONS_V1``.
-        """
         if not initiators:
             return
         session.run(
@@ -260,24 +225,6 @@ class Neo4jGraphStore(GraphStore):
             MERGE (d)-[:INITIATED_BY]->(e)
             """,
             initiators=initiators,
-        )
-
-    def _upsert_counterparties(self, session, counterparties: List[Dict]) -> None:
-        """Counterparty is also a Person Entity.
-
-        Uses ``HAS_COUNTERPARTY`` as defined in the registry.
-        """
-        if not counterparties:
-            return
-        session.run(
-            """
-            UNWIND $counterparties AS cp
-            MATCH (d:Decision {decision_id: cp.decision_id})
-            MERGE (e:Entity {name: cp.counterparty_name, type: 'Person'})
-            SET e.display_name = cp.display_name
-            MERGE (d)-[:HAS_COUNTERPARTY]->(e)
-            """,
-            counterparties=counterparties,
         )
 
     # ------------------------------------------------------------------
