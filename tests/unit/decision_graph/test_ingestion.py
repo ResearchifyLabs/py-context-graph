@@ -548,6 +548,7 @@ class TestBreakdownHydratedClusters(unittest.TestCase):
         "decision_entities",
         "decision_facts",
         "decision_initiators",
+        "decision_counterparties",
     }
 
     def test_breakdown_returns_exact_keys(self):

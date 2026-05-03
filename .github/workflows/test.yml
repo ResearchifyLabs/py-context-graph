@@ -21,4 +21,4 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
       - name: Run tests
-        run: PYTHONPATH=src:tests python -m unittest discover -s tests -p 'test_*.py'
+        run: python -m pytest tests/ -v

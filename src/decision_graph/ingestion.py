@@ -17,6 +17,7 @@ def breakdown_hydrated_clusters(
     decision_entities: List[Dict] = []
     decision_facts: List[Dict] = []
     decision_initiators: List[Dict] = []
+    decision_counterparties: List[Dict] = []
 
     for hc in hydrated_clusters:
         cluster = hc.get("cluster", {})
@@ -124,6 +125,21 @@ def breakdown_hydrated_clusters(
                     }
                 )
 
+            counterparty_names = projection.get("counterparty_names", [])
+            if isinstance(counterparty_names, str):
+                counterparty_names = [n.strip() for n in counterparty_names.split(",") if n.strip()]
+            for cp_name in counterparty_names:
+                if cp_name:
+                    normalized_cp = normalize_entity(cp_name)
+                    decision_counterparties.append(
+                        {
+                            "decision_id": decision_id,
+                            "gid": gid,
+                            "counterparty_name": normalized_cp or cp_name,
+                            "display_name": cp_name,
+                        }
+                    )
+
     return {
         "clusters": clusters,
         "decisions": decisions,
@@ -133,6 +149,7 @@ def breakdown_hydrated_clusters(
         "decision_entities": decision_entities,
         "decision_facts": decision_facts,
         "decision_initiators": decision_initiators,
+        "decision_counterparties": decision_counterparties,
     }
 
 

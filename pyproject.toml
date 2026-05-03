@@ -37,6 +37,7 @@ all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp", "neo4j"]
 dev = [
     "py-context-graph[all]",
     "mock-firestore",
+    "pytest",
     "coverage",
     "build",
 ]
@@ -46,6 +47,10 @@ Homepage = "https://github.com/ResearchifyLabs/py-context-graph"
 Repository = "https://github.com/ResearchifyLabs/py-context-graph"
 Issues = "https://github.com/ResearchifyLabs/py-context-graph/issues"
 Changelog = "https://github.com/ResearchifyLabs/py-context-graph/blob/main/CHANGELOG.md"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/decision_graph"]
