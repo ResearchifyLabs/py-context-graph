@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, patch
 
 from decision_graph.backends.neo4j import Neo4jGraphReader, Neo4jGraphStore
 from decision_graph.core.interfaces import GraphReader, GraphStore
