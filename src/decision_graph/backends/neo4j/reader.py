@@ -102,8 +102,9 @@ class Neo4jGraphReader(GraphReader):
                         }
                     )
 
-            # Fallback: search Fact k/v when name-match produced nothing.
-            if not candidates and "Decision" in types:
+            # Fallback: supplement with keyword search when name-match
+            # returns fewer results than requested (not only when empty).
+            if len(candidates) < top_k and "Decision" in types:
                 result = session.run(
                     RESOLVE_BY_KEYWORD,
                     {"q": text.lower(), "top_k": top_k},
@@ -152,7 +153,7 @@ class Neo4jGraphReader(GraphReader):
 
         start = time.time()
         with self._driver.session(database=self._database) as session:
-            records = list(session.run(query, params))
+            records = [r.data() for r in session.run(query, params)]
 
         latency_ms = int((time.time() - start) * 1000)
         _logger.debug(

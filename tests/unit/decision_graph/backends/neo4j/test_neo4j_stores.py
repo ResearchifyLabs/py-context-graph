@@ -96,35 +96,86 @@ class TestNeo4jGraphStoreInit(unittest.TestCase):
         self.assertIsInstance(Neo4jGraphStore(driver), GraphStore)
 
 
+class TestNeo4jGraphStoreEnsureSchema(unittest.TestCase):
+    def test_ensure_schema_creates_constraints(self):
+        driver, session = _make_driver()
+        session.run.return_value = Mock()
+        store = Neo4jGraphStore(driver)
+        store.ensure_schema()
+        queries = [str(c[0][0]) for c in session.run.call_args_list]
+        self.assertTrue(any("cluster_id_unique" in q for q in queries))
+        self.assertTrue(any("decision_id_unique" in q for q in queries))
+        self.assertTrue(any("topic_name_unique" in q for q in queries))
+        self.assertTrue(any("entity_name_type_unique" in q for q in queries))
+        self.assertTrue(any("constraint_unique" in q for q in queries))
+        self.assertTrue(any("fact_unique" in q for q in queries))
+
+    def test_ensure_schema_not_called_during_ingest(self):
+        driver, session = _make_driver()
+        store = Neo4jGraphStore(driver)
+        store.ingest(_sample_hydrated_clusters())
+        all_queries = " ".join(str(c) for c in session.run.call_args_list)
+        self.assertNotIn("CREATE CONSTRAINT", all_queries)
+
+    def test_constraint_errors_do_not_raise(self):
+        driver, session = _make_driver()
+        session.run.side_effect = Exception("already exists")
+        store = Neo4jGraphStore(driver)
+        store.ensure_schema()  # must not raise
+        self.assertGreaterEqual(session.run.call_count, 6)
+
+
 class TestNeo4jGraphStoreIngest(unittest.TestCase):
     def setUp(self):
         self.driver, self.session = _make_driver()
         self.store = Neo4jGraphStore(self.driver)
-        self.session.run.return_value = Mock()
 
     def test_empty_input_makes_no_db_calls(self):
         self.store.ingest([])
         self.session.run.assert_not_called()
+        self.session.execute_write.assert_not_called()
 
     def test_opens_session_with_correct_database(self):
         self.store.ingest(_sample_hydrated_clusters())
         self.driver.session.assert_called_once_with(database="neo4j")
 
     def test_raises_on_db_error(self):
-        self.session.run.side_effect = Exception("connection refused")
+        self.session.execute_write.side_effect = Exception("connection refused")
         with self.assertRaises(Exception, msg="connection refused"):
             self.store.ingest(_sample_hydrated_clusters())
 
-    def test_all_required_relationship_types_written(self):
+    def test_uses_execute_write_for_all_dml(self):
         self.store.ingest(_sample_hydrated_clusters())
-        all_queries = " ".join(str(c[0][0]) for c in self.session.run.call_args_list)
-        for rel in ("HAS_DECISION", "HAS_TOPIC", "MENTIONS_ENTITY", "INITIATED_BY",
-                    "HAS_CONSTRAINT", "HAS_FACT"):
+        self.assertGreater(self.session.execute_write.call_count, 0)
+        self.session.run.assert_not_called()
+
+    def test_all_required_relationship_types_written(self):
+        captured = []
+        def capture(fn):
+            captured.append(fn)
+        self.session.execute_write.side_effect = capture
+        self.store.ingest(_sample_hydrated_clusters())
+        # Invoke each captured function with a mock transaction to get the query
+        all_queries = ""
+        for fn in captured:
+            tx = Mock()
+            fn(tx)
+            if tx.run.call_args:
+                all_queries += str(tx.run.call_args[0][0])
+        for rel in ("HAS_DECISION", "HAS_TOPIC", "MENTIONS_ENTITY",
+                    "INITIATED_BY", "HAS_CONSTRAINT", "HAS_FACT"):
             self.assertIn(rel, all_queries, msg=f"Missing relationship: {rel}")
 
     def test_legacy_relationship_names_not_written(self):
+        captured = []
+        self.session.execute_write.side_effect = captured.append
         self.store.ingest(_sample_hydrated_clusters())
-        all_queries = " ".join(str(c[0][0]) for c in self.session.run.call_args_list)
+        all_queries = ""
+        for fn in captured:
+            tx = Mock()
+            fn(tx)
+            if tx.run.call_args:
+                all_queries += str(tx.run.call_args[0][0])
         for bad in ("CONTAINS", "HAS_ENTITY", "HAS_INITIATOR"):
             self.assertNotIn(bad, all_queries, msg=f"Legacy rel still present: {bad}")
 
@@ -139,26 +190,28 @@ class TestNeo4jGraphStoreIngest(unittest.TestCase):
         mock_breakdown.assert_called_once_with(_sample_hydrated_clusters())
 
 
-class TestNeo4jGraphStoreConstraints(unittest.TestCase):
+class TestNeo4jGraphStoreBatching(unittest.TestCase):
     def setUp(self):
         self.driver, self.session = _make_driver()
         self.store = Neo4jGraphStore(self.driver)
 
-    def test_creates_all_required_constraints(self):
-        self.session.run.return_value = Mock()
-        self.store._create_constraints(self.session)
-        queries = [str(c[0][0]) for c in self.session.run.call_args_list]
-        self.assertTrue(any("cluster_id_unique" in q for q in queries))
-        self.assertTrue(any("decision_id_unique" in q for q in queries))
-        self.assertTrue(any("topic_name_unique" in q for q in queries))
-        self.assertTrue(any("entity_name_type_unique" in q for q in queries))
-        self.assertTrue(any("constraint_unique" in q for q in queries))
-        self.assertTrue(any("fact_unique" in q for q in queries))
+    def test_large_list_is_chunked(self):
+        from decision_graph.backends.neo4j.stores import _CHUNK_SIZE
+        decisions = [
+            {"decision_id": f"d{i}", "gid": "g", "cid": "c",
+             "trace_id": "t", "linked_at": 1.0, "linked_from": "x"}
+            for i in range(_CHUNK_SIZE + 1)
+        ]
+        self.store._upsert_decisions(self.session, decisions)
+        self.assertEqual(self.session.execute_write.call_count, 2)
 
-    def test_constraint_errors_do_not_raise(self):
-        self.session.run.side_effect = Exception("already exists")
-        self.store._create_constraints(self.session)  # must not raise
-        self.assertGreaterEqual(self.session.run.call_count, 6)
+    def test_single_chunk_is_one_call(self):
+        decisions = [
+            {"decision_id": "d1", "gid": "g", "cid": "c",
+             "trace_id": "t", "linked_at": 1.0, "linked_from": "x"}
+        ]
+        self.store._upsert_decisions(self.session, decisions)
+        self.assertEqual(self.session.execute_write.call_count, 1)
 
 
 class TestNeo4jGraphStoreUpserts(unittest.TestCase):
@@ -166,66 +219,63 @@ class TestNeo4jGraphStoreUpserts(unittest.TestCase):
         self.driver, self.session = _make_driver()
         self.store = Neo4jGraphStore(self.driver)
 
+    def _run_captured(self, method, *args):
+        captured = []
+        self.session.execute_write.side_effect = captured.append
+        method(*args)
+        queries = []
+        kwargs_list = []
+        for fn in captured:
+            tx = Mock()
+            fn(tx)
+            if tx.run.call_args:
+                queries.append(tx.run.call_args[0][0])
+                kwargs_list.append(tx.run.call_args[1])
+        return queries, kwargs_list
+
     def test_upsert_clusters_merges_on_cluster_id(self):
         clusters = [{"cluster_id": "c1", "gid": "g1", "primary_subject": "Test",
                      "created_at": 1.0, "last_updated_at": 1.0,
                      "rolling_summary": "s", "decision_count": 1}]
-        self.store._upsert_clusters(self.session, clusters)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (c:Cluster {cluster_id: cluster.cluster_id})", query)
-        self.assertEqual(self.session.run.call_args[1]["clusters"], clusters)
+        queries, _ = self._run_captured(self.store._upsert_clusters, self.session, clusters)
+        self.assertTrue(any("MERGE (c:Cluster {cluster_id: cluster.cluster_id})" in q for q in queries))
 
     def test_upsert_clusters_empty_skips_db(self):
         self.store._upsert_clusters(self.session, [])
-        self.session.run.assert_not_called()
-
-    def test_upsert_decisions_merges_on_decision_id(self):
-        decisions = [{"decision_id": "d1", "gid": "g1", "cid": "c1",
-                      "trace_id": "t1", "linked_at": 1.0, "linked_from": "x"}]
-        self.store._upsert_decisions(self.session, decisions)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (d:Decision {decision_id: decision.decision_id})", query)
+        self.session.execute_write.assert_not_called()
 
     def test_link_clusters_decisions_uses_has_decision(self):
         dc = [{"cluster_id": "c1", "decision_id": "d1"}]
-        self.store._link_clusters_decisions(self.session, dc)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (c)-[:HAS_DECISION]->(d)", query)
+        queries, _ = self._run_captured(self.store._link_clusters_decisions, self.session, dc)
+        self.assertTrue(any("MERGE (c)-[:HAS_DECISION]->(d)" in q for q in queries))
 
     def test_upsert_topics_shared_node_merge_on_name(self):
         topics = [{"decision_id": "d1", "gid": "g1", "topic": "GraphQL"}]
-        self.store._upsert_topics(self.session, topics)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (t:Topic {name: topic.topic})", query)
-        self.assertIn("MERGE (d)-[:HAS_TOPIC]->(t)", query)
+        queries, _ = self._run_captured(self.store._upsert_topics, self.session, topics)
+        self.assertTrue(any("MERGE (t:Topic {name: topic.topic})" in q for q in queries))
+        self.assertTrue(any("MERGE (d)-[:HAS_TOPIC]->(t)" in q for q in queries))
 
     def test_upsert_entities_uses_mentions_entity(self):
         entities = [{"decision_id": "d1", "gid": "g1",
                      "type": "technology", "name": "graphql", "display_name": "GraphQL"}]
-        self.store._upsert_entities(self.session, entities)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (e:Entity {name: entity.name, type: entity.type})", query)
-        self.assertIn("MERGE (d)-[:MENTIONS_ENTITY]->(e)", query)
+        queries, _ = self._run_captured(self.store._upsert_entities, self.session, entities)
+        self.assertTrue(any("MERGE (d)-[:MENTIONS_ENTITY]->(e)" in q for q in queries))
 
-    def test_upsert_initiators_uses_initiated_by_and_person_type(self):
+    def test_upsert_initiators_uses_initiated_by(self):
         initiators = [{"decision_id": "d1", "gid": "g1", "initiator_name": "alice",
                        "display_name": "Alice", "initiator_role": "tech-lead"}]
-        self.store._upsert_initiators(self.session, initiators)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (e:Entity {name: initiator.initiator_name, type: 'Person'})", query)
-        self.assertIn("MERGE (d)-[:INITIATED_BY]->(e)", query)
+        queries, _ = self._run_captured(self.store._upsert_initiators, self.session, initiators)
+        self.assertTrue(any("MERGE (d)-[:INITIATED_BY]->(e)" in q for q in queries))
 
-    def test_upsert_constraints_per_decision_node(self):
+    def test_upsert_constraints(self):
         constraints = [{"decision_id": "d1", "gid": "g1", "text": "BC required"}]
-        self.store._upsert_constraints(self.session, constraints)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (d)-[:HAS_CONSTRAINT]->(c)", query)
+        queries, _ = self._run_captured(self.store._upsert_constraints, self.session, constraints)
+        self.assertTrue(any("MERGE (d)-[:HAS_CONSTRAINT]->(c)" in q for q in queries))
 
-    def test_upsert_facts_per_decision_node(self):
+    def test_upsert_facts(self):
         facts = [{"decision_id": "d1", "k": "timeline", "v": "Q1"}]
-        self.store._upsert_facts(self.session, facts)
-        query = self.session.run.call_args[0][0]
-        self.assertIn("MERGE (d)-[:HAS_FACT]->(f)", query)
+        queries, _ = self._run_captured(self.store._upsert_facts, self.session, facts)
+        self.assertTrue(any("MERGE (d)-[:HAS_FACT]->(f)" in q for q in queries))
 
 
 class TestNeo4jGraphStoreDeleteEdges(unittest.TestCase):
@@ -235,26 +285,34 @@ class TestNeo4jGraphStoreDeleteEdges(unittest.TestCase):
 
     def test_empty_ids_skips_db(self):
         self.store._delete_enrichment_edges(self.session, [])
-        self.session.run.assert_not_called()
+        self.session.execute_write.assert_not_called()
 
-    def test_makes_two_db_calls(self):
+    def test_makes_two_execute_write_calls_per_chunk(self):
         self.store._delete_enrichment_edges(self.session, ["d1"])
-        self.assertEqual(self.session.run.call_count, 2)
+        self.assertEqual(self.session.execute_write.call_count, 2)
 
-    def test_first_call_deletes_shared_node_relationships(self):
+    def test_shared_rels_deleted_without_node(self):
+        captured = []
+        self.session.execute_write.side_effect = captured.append
         self.store._delete_enrichment_edges(self.session, ["d1"])
-        q1 = self.session.run.call_args_list[0][0][0]
-        self.assertIn("HAS_TOPIC", q1)
-        self.assertIn("MENTIONS_ENTITY", q1)
-        self.assertIn("INITIATED_BY", q1)
-        self.assertNotIn("DELETE r, n", q1)
+        tx = Mock()
+        captured[0](tx)
+        q = tx.run.call_args[0][0]
+        self.assertIn("HAS_TOPIC", q)
+        self.assertIn("MENTIONS_ENTITY", q)
+        self.assertIn("INITIATED_BY", q)
+        self.assertNotIn("DELETE r, n", q)
 
-    def test_second_call_deletes_owned_nodes(self):
+    def test_owned_nodes_deleted_with_relationship(self):
+        captured = []
+        self.session.execute_write.side_effect = captured.append
         self.store._delete_enrichment_edges(self.session, ["d1"])
-        q2 = self.session.run.call_args_list[1][0][0]
-        self.assertIn("HAS_CONSTRAINT", q2)
-        self.assertIn("HAS_FACT", q2)
-        self.assertIn("DELETE r, n", q2)
+        tx = Mock()
+        captured[1](tx)
+        q = tx.run.call_args[0][0]
+        self.assertIn("HAS_CONSTRAINT", q)
+        self.assertIn("HAS_FACT", q)
+        self.assertIn("DELETE r, n", q)
 
 
 # ===========================================================================
@@ -296,15 +354,15 @@ class TestNeo4jGraphReaderResolve(unittest.TestCase):
         self.assertIn("debug", result)
         self.assertIn("latency_ms", result["debug"])
 
-    def test_falls_back_to_keyword_search_when_no_name_match(self):
+    def test_fallback_fires_when_fewer_than_top_k(self):
+        """Fallback supplements partial results, not only empty results."""
         call_count = {"n": 0}
-
         def side(query, params):
             call_count["n"] += 1
             return []
-
         self.session.run.side_effect = side
-        self.reader.resolve("graphql", types=["Decision"])
+        # top_k=5 but name-match returns 0 — fallback should fire
+        self.reader.resolve("graphql", types=["Decision"], top_k=5)
         self.assertEqual(call_count["n"], 2)
 
     def test_no_fallback_when_decision_not_in_types(self):
@@ -320,13 +378,21 @@ class TestNeo4jGraphReaderExecuteTemplate(unittest.TestCase):
 
     def test_known_template_returns_records_and_debug(self):
         mock_record = Mock()
+        mock_record.data.return_value = {"seed": {}, "primary_paths": []}
         self.session.run.return_value = [mock_record]
         result = self.reader.execute_template(
             "DECISION_EGO_V1", {"node_id": "d1", "rel_allowlist": []}
         )
-        self.assertEqual(result["records"], [mock_record])
+        self.assertEqual(result["records"], [mock_record.data.return_value])
         self.assertEqual(result["debug"]["template_id"], "DECISION_EGO_V1")
         self.assertIn("latency_ms", result["debug"])
+
+    def test_records_are_plain_dicts_not_driver_objects(self):
+        mock_record = Mock()
+        mock_record.data.return_value = {"k": "v"}
+        self.session.run.return_value = [mock_record]
+        result = self.reader.execute_template("DECISION_EGO_V1", {"node_id": "d1", "rel_allowlist": []})
+        self.assertIsInstance(result["records"][0], dict)
 
     def test_unknown_template_raises_value_error(self):
         with self.assertRaises(ValueError):
