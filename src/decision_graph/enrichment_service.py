@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List
 
 from decision_graph.core.config import GraphConfig, LLMConfig
 from decision_graph.core.domain import (
@@ -35,7 +35,7 @@ class DecisionEnrichmentService:
         return dedupe_list(items)
 
     @staticmethod
-    def _normalize_component(v: Optional[str]) -> str:
+    def _normalize_component(v: str | None) -> str:
         return normalize_component(v)
 
     @classmethod
@@ -43,10 +43,10 @@ class DecisionEnrichmentService:
         cls,
         *,
         cid: str,
-        decision_type: Optional[str],
-        action_type: Optional[str],
-        subject_label: Optional[str],
-        initiator_name: Optional[str],
+        decision_type: str | None,
+        action_type: str | None,
+        subject_label: str | None,
+        initiator_name: str | None,
     ) -> str:
         return compute_decision_id(
             cid=cid,
@@ -57,7 +57,7 @@ class DecisionEnrichmentService:
         )
 
     @classmethod
-    def merge_enrichment(cls, existing: Optional[dict], incoming: dict) -> dict:
+    def merge_enrichment(cls, existing: dict | None, incoming: dict) -> dict:
         return merge_enrichment(existing=existing, incoming=incoming)
 
     async def run_enrichment(
