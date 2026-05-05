@@ -1,7 +1,7 @@
 """Neo4j implementation of the GraphStore protocol."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from decision_graph.core.interfaces import GraphStore
 from decision_graph.ingestion import breakdown_hydrated_clusters
@@ -79,7 +79,7 @@ class Neo4jGraphStore(GraphStore):
     # Public protocol method
     # ------------------------------------------------------------------
 
-    def ingest(self, hydrated_clusters: List[Dict[str, Any]]) -> None:
+    def ingest(self, hydrated_clusters: list[dict[str, Any]]) -> None:
         if not hydrated_clusters:
             _logger.info("No hydrated clusters to ingest")
             return
@@ -124,7 +124,7 @@ class Neo4jGraphStore(GraphStore):
     # Core graph nodes
     # ------------------------------------------------------------------
 
-    def _upsert_clusters(self, session, clusters: List[Dict]) -> None:
+    def _upsert_clusters(self, session, clusters: list[dict]) -> None:
         if not clusters:
             return
         query = """
@@ -141,7 +141,7 @@ class Neo4jGraphStore(GraphStore):
             chunk = clusters[i:i + _CHUNK_SIZE]
             session.execute_write(lambda tx, c=chunk: tx.run(query, clusters=c))
 
-    def _upsert_decisions(self, session, decisions: List[Dict]) -> None:
+    def _upsert_decisions(self, session, decisions: list[dict]) -> None:
         if not decisions:
             return
         query = """
@@ -157,7 +157,7 @@ class Neo4jGraphStore(GraphStore):
             chunk = decisions[i:i + _CHUNK_SIZE]
             session.execute_write(lambda tx, c=chunk: tx.run(query, decisions=c))
 
-    def _link_clusters_decisions(self, session, decision_cluster: List[Dict]) -> None:
+    def _link_clusters_decisions(self, session, decision_cluster: list[dict]) -> None:
         if not decision_cluster:
             return
         query = """
@@ -174,7 +174,7 @@ class Neo4jGraphStore(GraphStore):
     # Enrichment edge cleanup
     # ------------------------------------------------------------------
 
-    def _delete_enrichment_edges(self, session, decision_ids: List[str]) -> None:
+    def _delete_enrichment_edges(self, session, decision_ids: list[str]) -> None:
         if not decision_ids:
             return
         q_shared = """
@@ -198,7 +198,7 @@ class Neo4jGraphStore(GraphStore):
     # Enrichment upserts — shared concept nodes
     # ------------------------------------------------------------------
 
-    def _upsert_topics(self, session, topics: List[Dict]) -> None:
+    def _upsert_topics(self, session, topics: list[dict]) -> None:
         if not topics:
             return
         query = """
@@ -211,7 +211,7 @@ class Neo4jGraphStore(GraphStore):
             chunk = topics[i:i + _CHUNK_SIZE]
             session.execute_write(lambda tx, c=chunk: tx.run(query, topics=c))
 
-    def _upsert_entities(self, session, entities: List[Dict]) -> None:
+    def _upsert_entities(self, session, entities: list[dict]) -> None:
         if not entities:
             return
         query = """
@@ -225,7 +225,7 @@ class Neo4jGraphStore(GraphStore):
             chunk = entities[i:i + _CHUNK_SIZE]
             session.execute_write(lambda tx, c=chunk: tx.run(query, entities=c))
 
-    def _upsert_initiators(self, session, initiators: List[Dict]) -> None:
+    def _upsert_initiators(self, session, initiators: list[dict]) -> None:
         if not initiators:
             return
         query = """
@@ -244,7 +244,7 @@ class Neo4jGraphStore(GraphStore):
     # Enrichment upserts — per-decision owned nodes
     # ------------------------------------------------------------------
 
-    def _upsert_constraints(self, session, constraints: List[Dict]) -> None:
+    def _upsert_constraints(self, session, constraints: list[dict]) -> None:
         if not constraints:
             return
         query = """
@@ -259,7 +259,7 @@ class Neo4jGraphStore(GraphStore):
             chunk = constraints[i:i + _CHUNK_SIZE]
             session.execute_write(lambda tx, c=chunk: tx.run(query, constraints=c))
 
-    def _upsert_facts(self, session, facts: List[Dict]) -> None:
+    def _upsert_facts(self, session, facts: list[dict]) -> None:
         if not facts:
             return
         query = """

@@ -4,7 +4,7 @@ from typing import (
     Any,
     Dict,
     List,
-    Literal,
+    Literal
 )
 
 from pydantic import AliasChoices

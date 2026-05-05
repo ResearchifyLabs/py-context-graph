@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from decision_graph.context_graph.templates import RESOLVE_BY_KEYWORD, RESOLVE_NODES, TEMPLATES
 from decision_graph.core.interfaces import GraphReader
@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 _LABEL_PRIORITY = ("Decision", "Cluster", "Topic", "Entity", "Constraint", "Fact")
 
 
-def _primary_label(labels: List[str], preferred: List[str]) -> str:
+def _primary_label(labels: list[str], preferred: list[str]) -> str:
     for p in preferred:
         if p in labels:
             return p
@@ -23,14 +23,14 @@ def _primary_label(labels: List[str], preferred: List[str]) -> str:
     return labels[0] if labels else "Unknown"
 
 
-def _candidate_name(props: Dict[str, Any], node_type: str) -> str:
+def _candidate_name(props: dict[str, Any], node_type: str) -> str:
     if node_type == "Decision":
         return props.get("subject_label") or props.get("decision_id", "")
     # Topic nodes store the text in "name"; Entity/Person nodes also use "name".
     return props.get("name") or props.get("display_name", "")
 
 
-def _candidate_id(props: Dict[str, Any]) -> str:
+def _candidate_id(props: dict[str, Any]) -> str:
     """Stable node identity used by post-processing and the UI."""
     return (
         props.get("decision_id")
@@ -59,9 +59,9 @@ class Neo4jGraphReader(GraphReader):
     def resolve(
         self,
         text: str,
-        types: Optional[List[str]] = None,
+        types: list[str] | None = None,
         top_k: int = 8,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Find candidate nodes whose ``name`` contains *text*.
 
         Falls back to a keyword search over Fact values when the name-match
@@ -78,7 +78,7 @@ class Neo4jGraphReader(GraphReader):
         if not types:
             types = ["Topic", "Entity", "Decision"]
 
-        candidates: List[Dict[str, Any]] = []
+        candidates: list[dict[str, Any]] = []
         seen: set = set()
 
         with self._driver.session(database=self._database) as session:
@@ -133,8 +133,8 @@ class Neo4jGraphReader(GraphReader):
     def execute_template(
         self,
         template_id: str,
-        params: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        params: dict[str, Any],
+    ) -> dict[str, Any]:
         """Execute a named Cypher template.
 
         Parameters are forwarded verbatim to Neo4j so the caller controls
@@ -170,8 +170,8 @@ class Neo4jGraphReader(GraphReader):
     def run_query(
         self,
         query: str,
-        params: Optional[Dict[str, Any]] = None,
-    ) -> List[Dict[str, Any]]:
+        params: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
         """Execute an arbitrary parameterised Cypher query.
 
         Returns each record as a plain ``dict`` (``record.data()``).
