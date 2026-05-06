@@ -32,7 +32,8 @@ dependencies = [
 llm = ["litellm"]
 firestore = ["google-cloud-firestore"]
 memory = ["pandas"]
-all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp"]
+neo4j = ["neo4j"]
+all = ["litellm", "google-cloud-firestore", "pandas", "aiohttp", "neo4j"]
 dev = [
     "py-context-graph[all]",
     "mock-firestore",
